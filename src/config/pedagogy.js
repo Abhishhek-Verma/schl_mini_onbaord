@@ -31,6 +31,13 @@ export const SECTION_LABELS = {
 
 export const SECTION_MIN_THRESHOLD = 40; // flag any section below this (normalized %)
 
+// Timing configuration (all values tunable)
+export const TIMING = {
+  totalMinutes: 35,          // global HARD limit; auto-submit when it hits 0
+  softPerQuestionSeconds: 75, // per-question SOFT target (advisory only)
+  hardPerQuestion: false,     // if true, per-question timer also auto-advances (NOT recommended)
+};
+
 // Overall score -> band
 export function scoreToBand(score) {
   if (score >= 85) return "Strong";

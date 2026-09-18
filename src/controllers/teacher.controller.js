@@ -7,7 +7,6 @@ import {
   completeTeacherDocumentUpload,
   deleteTeacherDocument,
   saveDocumentsStep,
-  saveSkillAssessment,
   saveDemoClass,
   saveTeacherPassport,
   saveAvailability,
@@ -67,14 +66,6 @@ export async function deleteTeacherDocumentHandler(req, res, next) {
 export async function saveDocumentsStepHandler(req, res, next) {
   try {
     res.json(await saveDocumentsStep(req.user.id));
-  } catch (error) {
-    next(error);
-  }
-}
-
-export async function saveSkillAssessmentHandler(req, res, next) {
-  try {
-    res.json(await saveSkillAssessment(req.user.id));
   } catch (error) {
     next(error);
   }

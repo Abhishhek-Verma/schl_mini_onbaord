@@ -95,7 +95,9 @@ assert.equal(scoreSJT(sjtQuestion, ["A", "B", "D", "C"]), 0.75, "Single adjacent
 // Invalid or incomplete ranking
 assert.equal(scoreSJT(sjtQuestion, ["A", "D"]), 0.0, "Incomplete ranking should score 0");
 assert.equal(scoreSJT(sjtQuestion, ["A", "A", "A", "A"]), 0.0, "Duplicate keys should score 0");
-console.log("  ✔ 3. SJT rank distance & displacement tests passed.");
+assert.equal(scoreSJT(sjtQuestion, null), 0.0, "Untouched/null ranking should score 0");
+assert.equal(scoreSJT(sjtQuestion, undefined), 0.0, "Untouched/undefined ranking should score 0");
+console.log("  ✔ 3. SJT rank distance & displacement tests passed (including null/untouched).");
 
 // =========================================================================
 // 4. CASE Group Tests (Coherence Bonus Applied vs Not)

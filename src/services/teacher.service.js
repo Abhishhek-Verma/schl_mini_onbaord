@@ -340,14 +340,6 @@ export async function saveDocumentsStep(userId) {
   return { profile: serializeProfile(updated) };
 }
 
-export async function saveSkillAssessment(userId) {
-  const updated = await prisma.teacherProfile.update({
-    where: { userId },
-    data: { skillAssessmentCompleted: true },
-  });
-  return { profile: serializeProfile(updated) };
-}
-
 export async function saveDemoClass(userId, input) {
   const demoVideoUrl = input.demoVideoUrl?.trim() || null;
   if (!demoVideoUrl) {

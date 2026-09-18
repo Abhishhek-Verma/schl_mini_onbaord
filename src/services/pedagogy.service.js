@@ -1,5 +1,5 @@
 import { prisma } from "../../lib/prisma.js";
-import { SECTION_ORDER, SECTION_LABELS } from "../config/pedagogy.js";
+import { SECTION_ORDER, SECTION_LABELS, TIMING } from "../config/pedagogy.js";
 import { scoreAttempt } from "./pedagogyScoring.js";
 import { serializeProfile, validationError } from "./teacher.service.js";
 
@@ -91,6 +91,14 @@ export async function startPedagogyAssessment(userId) {
 
   const questionOrder = orderedQuestions.map((q) => q.id);
 
+  // Clear any existing IN_PROGRESS attempts for this user (at most one live attempt)
+  await prisma.pedagogyAttempt.deleteMany({
+    where: {
+      userId,
+      status: "IN_PROGRESS",
+    },
+  });
+
   // Create attempt in database
   const attempt = await prisma.pedagogyAttempt.create({
     data: {
@@ -133,7 +141,9 @@ export async function startPedagogyAssessment(userId) {
 
   return {
     attemptId: attempt.id,
-    durationMinutes: 35,
+    durationMinutes: TIMING.totalMinutes,
+    softPerQuestionSeconds: TIMING.softPerQuestionSeconds,
+    hardPerQuestion: TIMING.hardPerQuestion,
     questions: sanitizedQuestions,
   };
 }
@@ -221,11 +231,15 @@ export async function submitPedagogyAssessment(userId, input = {}) {
   });
 
   // Mark skillAssessmentCompleted in TeacherProfile
-  const updatedProfile = await prisma.teacherProfile.upsert({
-    where: { userId },
-    update: { skillAssessmentCompleted: true },
-    create: { userId, skillAssessmentCompleted: true },
-  });
+  let updatedProfile;
+  try {
+    updatedProfile = await prisma.teacherProfile.update({
+      where: { userId },
+      data: { skillAssessmentCompleted: true },
+    });
+  } catch (err) {
+    throw validationError("Complete your profile before the skill assessment.");
+  }
 
   return {
     result: scoreResult,

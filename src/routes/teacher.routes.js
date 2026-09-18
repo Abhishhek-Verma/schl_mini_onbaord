@@ -10,7 +10,6 @@ import {
   completeTeacherDocumentUploadHandler,
   deleteTeacherDocumentHandler,
   saveDocumentsStepHandler,
-  saveSkillAssessmentHandler,
   saveDemoClassHandler,
   saveTeacherPassportHandler,
   saveAvailabilityHandler,
@@ -28,7 +27,6 @@ router.get("/onboarding", ...teacherOnly, getTeacherOnboardingHandler);
 router.put("/onboarding/basic-information", ...teacherOnly, saveBasicInformationHandler);
 router.put("/onboarding/profile-completion", ...teacherOnly, saveProfileCompletionHandler);
 router.put("/onboarding/documents-step", ...teacherOnly, saveDocumentsStepHandler);
-router.put("/onboarding/skill-assessment", ...teacherOnly, saveSkillAssessmentHandler);
 router.post("/onboarding/skill-assessment/start", ...teacherOnly, startPedagogyAssessmentHandler);
 router.post("/onboarding/skill-assessment/submit", ...teacherOnly, submitPedagogyAssessmentHandler);
 router.get("/onboarding/skill-assessment/result", ...teacherOnly, getPedagogyResultHandler);

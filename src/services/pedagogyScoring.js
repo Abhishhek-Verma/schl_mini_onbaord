@@ -230,7 +230,8 @@ export function scoreAttempt(questions = [], responses = {}) {
     // Calculate normalized percentage (0..100)
     const normalized = secMax > 0 ? Number(((secRaw / secMax) * 100).toFixed(1)) : 0;
     const weight = SECTION_WEIGHTS[sec] ?? 0;
-    const weighted = Number((normalized * weight).toFixed(1));
+    const weightedRaw = normalized * weight;
+    const weighted = Number(weightedRaw.toFixed(1));
 
     if (secMax > 0 && normalized < SECTION_MIN_THRESHOLD) {
       const belowMinFlag = {
@@ -248,17 +249,23 @@ export function scoreAttempt(questions = [], responses = {}) {
       normalized,
       weight,
       weighted,
+      weightedRaw,
       label: SECTION_LABELS[sec] || sec,
       flags: secFlags,
     };
   }
 
-  // Overall score is sum of weighted section scores
-  const overallScore = Number(
-    Object.values(sectionScores)
-      .reduce((acc, curr) => acc + curr.weighted, 0)
-      .toFixed(1)
+  // Overall score is sum of unrounded weighted section scores, rounded once at the end
+  const sumOfWeightedRaw = Object.values(sectionScores).reduce(
+    (acc, curr) => acc + (curr.weightedRaw ?? 0),
+    0
   );
+  const overallScore = Number(sumOfWeightedRaw.toFixed(1));
+
+  // Clean up internal weightedRaw before returning
+  for (const sec of Object.keys(sectionScores)) {
+    delete sectionScores[sec].weightedRaw;
+  }
 
   const band = scoreToBand(overallScore);
   const sectionMinMet = flags.every((f) => f.type !== "SECTION_BELOW_MIN");

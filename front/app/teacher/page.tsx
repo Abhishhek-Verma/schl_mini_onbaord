@@ -828,33 +828,6 @@ function TeacherPageContent() {
     }
   };
 
-  // Save Skill Assessment (Post-onboarding feature beside Demo Class)
-  const saveSkillsStep = async (continueNext = true) => {
-    if (!accessToken) return;
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const result = await fetchApi<{ profile: TeacherProfile }>(
-        '/teacher/onboarding/skill-assessment',
-        { method: 'PUT' },
-        accessToken
-      );
-      setProfile(result.profile);
-      updateUser({ skillAssessmentCompleted: true });
-      setSuccess('Skill Assessment completed and verified successfully!');
-      if (continueNext) {
-        router.replace('/teacher?section=skills');
-      }
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Unable to save Skill Assessment'
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
-
   // Save Demo Class (Post-onboarding feature)
   const saveDemoStep = async (event?: React.FormEvent, continueNext = true) => {
     if (event) event.preventDefault();
@@ -1139,10 +1112,6 @@ function TeacherPageContent() {
         savingDemo={saving}
         demoSuccess={success}
         demoError={error}
-        onSaveSkills={() => saveSkillsStep(false)}
-        savingSkills={saving}
-        skillsSuccess={success}
-        skillsError={error}
       />
     );
   }
@@ -2744,122 +2713,6 @@ function DocumentsStepForm({
   );
 }
 
-// -------------------------------------------------------------------------
-// Skill Assessment Form (Post-onboarding feature beside Demo Class)
-// -------------------------------------------------------------------------
-function SkillsStepForm({
-  saving,
-  isCompleted = false,
-  onSubmit,
-  onSaveProgress,
-  onBack,
-}: {
-  saving: boolean;
-  isCompleted?: boolean;
-  onSubmit: () => Promise<void>;
-  onSaveProgress?: () => Promise<void>;
-  onBack: () => void;
-}) {
-  return (
-    <div className="bg-card border border-border rounded-xl p-6 md:p-8 shadow-lg">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-heading text-xl font-bold flex items-center gap-2">
-          <Zap className="size-5 text-primary" />
-          Skill Assessment
-        </h2>
-        {isCompleted ? (
-          <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
-            <CheckCircle2 className="size-3" />
-            Completed & Verified
-          </span>
-        ) : (
-          <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-amber-500/20 text-amber-500 border border-amber-500/30 animate-pulse">
-            New
-          </span>
-        )}
-      </div>
-
-      <div className="my-8 text-center max-w-lg mx-auto py-6">
-        <div className="mx-auto size-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-4">
-          <Sparkles className="size-8" />
-        </div>
-        <h3 className="font-heading font-bold text-lg">
-          Skill & Competency Verification
-        </h3>
-        <p className="text-sm text-muted-foreground mt-2">
-          Your skill competencies are automatically synchronized based on your
-          subjects and qualifications. Review your evaluated competencies below.
-        </p>
-
-        {/* Competency breakdown cards */}
-        <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 text-left text-xs">
-          <div className="rounded-lg bg-muted/60 border border-border/60 p-3">
-            <div className="text-[11px] text-muted-foreground font-medium">Pedagogy Evaluation</div>
-            <div className="font-semibold text-foreground mt-1 text-sm">Proficient</div>
-          </div>
-          <div className="rounded-lg bg-muted/60 border border-border/60 p-3">
-            <div className="text-[11px] text-muted-foreground font-medium">Classroom Management</div>
-            <div className="font-semibold text-foreground mt-1 text-sm">Verified</div>
-          </div>
-          <div className="rounded-lg bg-muted/60 border border-border/60 p-3">
-            <div className="text-[11px] text-muted-foreground font-medium">Subject Mastery</div>
-            <div className="font-semibold text-foreground mt-1 text-sm">Certified</div>
-          </div>
-        </div>
-
-        <div className={`mt-6 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold ${
-          isCompleted
-            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600'
-            : 'border-amber-500/30 bg-amber-500/10 text-amber-600'
-        }`}>
-          {isCompleted ? <CheckCircle2 className="size-4" /> : <Sparkles className="size-4" />}
-          <span>
-            {isCompleted
-              ? 'Status: Verified & Recorded on Profile'
-              : 'Status: Ready to Confirm & Complete'}
-          </span>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex-1 inline-flex items-center justify-center gap-2 rounded-md border border-border px-4 py-2.5 text-sm font-semibold hover:bg-muted transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="size-4" />
-          <span>Back to Dashboard</span>
-        </button>
-        {onSaveProgress && !isCompleted && (
-          <button
-            type="button"
-            onClick={onSaveProgress}
-            disabled={saving}
-            className="flex-1 inline-flex items-center justify-center gap-2 rounded-md border border-border bg-secondary px-4 py-2.5 text-sm font-semibold hover:bg-secondary/80 transition-colors disabled:opacity-50 cursor-pointer"
-          >
-            <Save className="size-4" />
-            <span>Save for later</span>
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={onSubmit}
-          disabled={saving}
-          className="flex-1 inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
-        >
-          <Zap className="size-4" />
-          <span>
-            {saving
-              ? 'Saving...'
-              : isCompleted
-              ? 'Re-verify Assessment'
-              : 'Complete Skill Assessment'}
-          </span>
-        </button>
-      </div>
-    </div>
-  );
-}
 
 // -------------------------------------------------------------------------
 // Step 5: Demo Class Form (YouTube link input)
@@ -4454,10 +4307,6 @@ function TeacherDashboard({
   savingDemo,
   demoSuccess,
   demoError,
-  onSaveSkills,
-  savingSkills,
-  skillsSuccess,
-  skillsError,
 }: {
   user: any;
   profile: TeacherProfile | null;
@@ -4468,10 +4317,6 @@ function TeacherDashboard({
   savingDemo: boolean;
   demoSuccess?: string | null;
   demoError?: string | null;
-  onSaveSkills?: (e?: React.FormEvent) => Promise<void>;
-  savingSkills?: boolean;
-  skillsSuccess?: string | null;
-  skillsError?: string | null;
 }) {
   const [isDemoExpanded, setIsDemoExpanded] = useState(false);
   const [isSkillsExpanded, setIsSkillsExpanded] = useState(false);
@@ -4725,18 +4570,6 @@ function TeacherDashboard({
         {/* Collapsible Content */}
         {isSkillsExpanded && (
           <div className="mt-5 pt-5 border-t border-border space-y-4">
-            {skillsError && (
-              <div className="flex items-center gap-2 rounded-md border border-destructive bg-destructive/15 p-3 text-xs text-destructive">
-                <AlertCircle className="size-4 shrink-0" />
-                <span>{skillsError}</span>
-              </div>
-            )}
-            {skillsSuccess && (
-              <div className="flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/15 p-3 text-xs text-emerald-500">
-                <CheckCircle2 className="size-4 shrink-0" />
-                <span>{skillsSuccess}</span>
-              </div>
-            )}
 
             <div className="my-2 text-center max-w-lg mx-auto py-2">
               <div className="mx-auto size-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-3">

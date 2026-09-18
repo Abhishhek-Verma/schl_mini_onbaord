@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useAuthStore } from '@/store/useAuthStore';
 import {
@@ -16,6 +16,7 @@ import {
   HelpCircle,
   FileQuestion,
   ListOrdered,
+  Hourglass,
 } from 'lucide-react';
 
 export interface QuestionOption {
@@ -38,6 +39,8 @@ export interface SanitizedQuestion {
 interface StartResponse {
   attemptId: string;
   durationMinutes: number;
+  softPerQuestionSeconds?: number;
+  hardPerQuestion?: boolean;
   questions: SanitizedQuestion[];
 }
 
@@ -56,14 +59,25 @@ export function AssessmentRunner({ onComplete, onCancel }: AssessmentRunnerProps
   const [questions, setQuestions] = useState<SanitizedQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
 
+  // Timing configuration from backend
+  const [durationMinutes, setDurationMinutes] = useState(35);
+  const [softPerQuestionSeconds, setSoftPerQuestionSeconds] = useState(75);
+  const [hardPerQuestion, setHardPerQuestion] = useState(false);
+
+  // Timers: elapsed seconds (counts up), and soft question timer (counts down from softPerQuestionSeconds)
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [questionSecondsLeft, setQuestionSecondsLeft] = useState(75);
+
   // responses: { [questionId]: "A" | ["A", "B"] | ["A", "D", "B", "C"] }
   const [responses, setResponses] = useState<Record<string, any>>({});
+  // SJT tracking: per-question visual ranking and touched flag
+  const [sjtRankings, setSjtRankings] = useState<Record<string, string[]>>({});
+  const [touchedSJT, setTouchedSJT] = useState<Record<string, boolean>>({});
+
   // perQuestionMs: { [questionId]: accumulatedMs }
   const perQuestionMsRef = useRef<Record<string, number>>({});
   const questionStartTimeRef = useRef<number>(Date.now());
-
-  // Total timer tracking
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const submittingRef = useRef<boolean>(false);
 
   // 1. Fetch /start on mount
   useEffect(() => {
@@ -88,14 +102,25 @@ export function AssessmentRunner({ onComplete, onCancel }: AssessmentRunnerProps
         setAttemptId(data.attemptId);
         setQuestions(data.questions);
 
-        // Pre-initialize SJT responses with initial option order so the user sees a valid default sequence
-        const initialResponses: Record<string, any> = {};
+        if (typeof data.durationMinutes === 'number') {
+          setDurationMinutes(data.durationMinutes);
+        }
+        if (typeof data.softPerQuestionSeconds === 'number') {
+          setSoftPerQuestionSeconds(data.softPerQuestionSeconds);
+          setQuestionSecondsLeft(data.softPerQuestionSeconds);
+        }
+        if (typeof data.hardPerQuestion === 'boolean') {
+          setHardPerQuestion(data.hardPerQuestion);
+        }
+
+        // Initialize visual SJT orders (WITHOUT pre-seeding into responses)
+        const initialSjtRankings: Record<string, string[]> = {};
         for (const q of data.questions) {
           if (q.type === 'SJT' && Array.isArray(q.options)) {
-            initialResponses[q.id] = q.options.map((o) => o.key);
+            initialSjtRankings[q.id] = q.options.map((o) => o.key);
           }
         }
-        setResponses(initialResponses);
+        setSjtRankings(initialSjtRankings);
 
         questionStartTimeRef.current = Date.now();
         setLoading(false);
@@ -117,19 +142,8 @@ export function AssessmentRunner({ onComplete, onCancel }: AssessmentRunnerProps
     };
   }, [accessToken]);
 
-  // 2. Global duration timer
-  useEffect(() => {
-    if (loading || submitting || questions.length === 0) return;
-
-    const timer = setInterval(() => {
-      setElapsedSeconds((prev) => prev + 1);
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [loading, submitting, questions.length]);
-
-  // Accumulate time spent on current question before switching index
-  const trackTimeForCurrentQuestion = () => {
+  // Accumulate time spent on current question
+  const trackTimeForCurrentQuestion = useCallback(() => {
     const currentQ = questions[currentIndex];
     if (!currentQ) return;
     const now = Date.now();
@@ -137,7 +151,120 @@ export function AssessmentRunner({ onComplete, onCancel }: AssessmentRunnerProps
     perQuestionMsRef.current[currentQ.id] =
       (perQuestionMsRef.current[currentQ.id] || 0) + spent;
     questionStartTimeRef.current = now;
-  };
+  }, [currentIndex, questions]);
+
+  // Submit assessment function (used by button and auto-submit)
+  const handleSubmit = useCallback(async () => {
+    if (submittingRef.current || !attemptId) return;
+    submittingRef.current = true;
+    trackTimeForCurrentQuestion();
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      // Build final responses payload: only send SJT if touched; otherwise null
+      const finalResponses: Record<string, any> = {};
+      for (const q of questions) {
+        if (q.type === 'SJT') {
+          if (touchedSJT[q.id] && Array.isArray(responses[q.id])) {
+            finalResponses[q.id] = responses[q.id];
+          } else {
+            finalResponses[q.id] = null;
+          }
+        } else if (responses[q.id] !== undefined) {
+          finalResponses[q.id] = responses[q.id];
+        }
+      }
+
+      const payload = {
+        attemptId,
+        responses: finalResponses,
+        perQuestionMs: perQuestionMsRef.current,
+        durationSec: elapsedSeconds,
+      };
+
+      const res = await fetchApi<{ result: any; profile: any }>(
+        '/teacher/onboarding/skill-assessment/submit',
+        {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        },
+        accessToken
+      );
+
+      // Sync auth state
+      updateUser({ skillAssessmentCompleted: true });
+
+      onComplete(res.result);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to submit assessment. Please try again.'
+      );
+      setSubmitting(false);
+      submittingRef.current = false;
+    }
+  }, [
+    attemptId,
+    responses,
+    touchedSJT,
+    questions,
+    elapsedSeconds,
+    accessToken,
+    trackTimeForCurrentQuestion,
+    updateUser,
+    onComplete,
+  ]);
+
+  // 2. Global hard countdown & per-question countdown
+  const totalLimitSeconds = durationMinutes * 60;
+  const remainingGlobalSeconds = Math.max(0, totalLimitSeconds - elapsedSeconds);
+
+  useEffect(() => {
+    if (loading || submitting || questions.length === 0) return;
+
+    const interval = setInterval(() => {
+      setElapsedSeconds((prev) => {
+        const next = prev + 1;
+        if (next >= totalLimitSeconds) {
+          // Hard limit reached: auto-submit!
+          handleSubmit();
+        }
+        return next;
+      });
+
+      setQuestionSecondsLeft((prev) => {
+        const nextQ = Math.max(0, prev - 1);
+        if (nextQ === 0 && hardPerQuestion) {
+          // If hard per-question auto-advance is enabled (off by default)
+          if (currentIndex < questions.length - 1) {
+            trackTimeForCurrentQuestion();
+            setCurrentIndex((curr) => curr + 1);
+          } else {
+            handleSubmit();
+          }
+        }
+        return nextQ;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [
+    loading,
+    submitting,
+    questions.length,
+    totalLimitSeconds,
+    hardPerQuestion,
+    currentIndex,
+    handleSubmit,
+    trackTimeForCurrentQuestion,
+  ]);
+
+  // Reset per-question timer whenever index changes
+  useEffect(() => {
+    setQuestionSecondsLeft(softPerQuestionSeconds);
+  }, [currentIndex, softPerQuestionSeconds]);
 
   const currentQ = questions[currentIndex];
 
@@ -159,14 +286,16 @@ export function AssessmentRunner({ onComplete, onCancel }: AssessmentRunnerProps
       return Array.isArray(ans) && ans.length > 0;
     }
     if (currentQ.type === 'SJT') {
+      // TASK 1: MUST BE TOUCHED and have full permutation to be counted as answered
       return (
+        touchedSJT[currentQ.id] === true &&
         Array.isArray(ans) &&
         ans.length === currentQ.options.length &&
         ans.length > 0
       );
     }
     return false;
-  }, [currentQ, responses]);
+  }, [currentQ, responses, touchedSJT]);
 
   // Handlers for selection
   const handleSelectMCQ = (key: string) => {
@@ -195,8 +324,10 @@ export function AssessmentRunner({ onComplete, onCancel }: AssessmentRunnerProps
 
   const handleMoveSJT = (index: number, direction: 'up' | 'down') => {
     if (!currentQ) return;
-    const currentRanking: string[] = Array.isArray(responses[currentQ.id])
-      ? [...responses[currentQ.id]]
+
+    // Get current visual permutation
+    const currentRanking: string[] = Array.isArray(sjtRankings[currentQ.id])
+      ? [...sjtRankings[currentQ.id]]
       : currentQ.options.map((o) => o.key);
 
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
@@ -207,6 +338,17 @@ export function AssessmentRunner({ onComplete, onCancel }: AssessmentRunnerProps
     currentRanking[index] = currentRanking[targetIndex];
     currentRanking[targetIndex] = temp;
 
+    // Update visual ranking
+    setSjtRankings((prev) => ({
+      ...prev,
+      [currentQ.id]: currentRanking,
+    }));
+
+    // TASK 1: Mark touched and store in responses
+    setTouchedSJT((prev) => ({
+      ...prev,
+      [currentQ.id]: true,
+    }));
     setResponses((prev) => ({
       ...prev,
       [currentQ.id]: currentRanking,
@@ -226,44 +368,6 @@ export function AssessmentRunner({ onComplete, onCancel }: AssessmentRunnerProps
     trackTimeForCurrentQuestion();
     if (currentIndex > 0) {
       setCurrentIndex((prev) => prev - 1);
-    }
-  };
-
-  // Submit assessment
-  const handleSubmit = async () => {
-    if (!isCurrentAnswered || !attemptId) return;
-    trackTimeForCurrentQuestion();
-    setSubmitting(true);
-    setError(null);
-
-    try {
-      const payload = {
-        attemptId,
-        responses,
-        perQuestionMs: perQuestionMsRef.current,
-        durationSec: elapsedSeconds,
-      };
-
-      const res = await fetchApi<{ result: any; profile: any }>(
-        '/teacher/onboarding/skill-assessment/submit',
-        {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        },
-        accessToken
-      );
-
-      // Sync auth state
-      updateUser({ skillAssessmentCompleted: true });
-
-      onComplete(res.result);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Failed to submit assessment. Please try again.'
-      );
-      setSubmitting(false);
     }
   };
 
@@ -309,6 +413,21 @@ export function AssessmentRunner({ onComplete, onCancel }: AssessmentRunnerProps
     ((currentIndex + 1) / questions.length) * 100
   );
 
+  // Styling for timers
+  const globalTimerClass =
+    remainingGlobalSeconds <= 60
+      ? 'text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/30 animate-pulse'
+      : remainingGlobalSeconds <= 300
+      ? 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/30'
+      : 'text-muted-foreground bg-background border-border/80';
+
+  const softTimerClass =
+    questionSecondsLeft === 0
+      ? 'text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/30'
+      : questionSecondsLeft <= 20
+      ? 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/30'
+      : 'text-muted-foreground bg-background border-border/80';
+
   return (
     <div className="bg-card border border-border rounded-xl shadow-md overflow-hidden transition-all">
       {/* Header bar */}
@@ -327,20 +446,44 @@ export function AssessmentRunner({ onComplete, onCancel }: AssessmentRunnerProps
             )}
           </div>
 
-          {/* Timer & Question count */}
-          <div className="flex items-center gap-4 text-xs">
-            <div className="flex items-center gap-1.5 text-muted-foreground font-medium bg-background px-2.5 py-1 rounded-md border border-border/80">
-              <Clock className="size-3.5 text-primary" />
-              <span>{formatTimer(elapsedSeconds)}</span>
+          {/* Timer controls */}
+          <div className="flex flex-wrap items-center gap-2.5 text-xs">
+            {/* Per-question soft timer (advisory) */}
+            <div
+              title="Per-question pacing suggestion (advisory)"
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md border text-[11px] font-medium transition-colors ${softTimerClass}`}
+            >
+              <Hourglass className="size-3" />
+              <span>Q: {formatTimer(questionSecondsLeft)}</span>
             </div>
-            <span className="font-semibold text-foreground">
-              Question {currentIndex + 1} of {questions.length}
+
+            {/* Global hard timer */}
+            <div
+              title="Total time remaining for assessment"
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md border font-semibold transition-colors ${globalTimerClass}`}
+            >
+              <Clock className="size-3.5" />
+              <span>{formatTimer(remainingGlobalSeconds)}</span>
+            </div>
+
+            <span className="font-semibold text-foreground ml-1">
+              {currentIndex + 1} / {questions.length}
             </span>
           </div>
         </div>
 
+        {/* Advisory timing copy (Task 3d) */}
+        <div className="flex items-center justify-between mt-2 pt-1 text-[11px] text-muted-foreground">
+          <span>Total time is limited; the per-question timer is a suggested pace, not a cutoff.</span>
+          {questionSecondsLeft === 0 && (
+            <span className="text-amber-600 dark:text-amber-400 font-medium">
+              Suggested pace reached — take your time and proceed when ready.
+            </span>
+          )}
+        </div>
+
         {/* Progress bar */}
-        <div className="w-full bg-muted rounded-full h-1.5 mt-3 overflow-hidden">
+        <div className="w-full bg-muted rounded-full h-1.5 mt-2.5 overflow-hidden">
           <div
             className="bg-primary h-full transition-all duration-300"
             style={{ width: `${progressPercent}%` }}
@@ -451,16 +594,21 @@ export function AssessmentRunner({ onComplete, onCancel }: AssessmentRunnerProps
           {/* 3. SJT (Rank Ordering) */}
           {currentQ?.type === 'SJT' && (
             <div className="space-y-3">
-              <div className="text-xs text-muted-foreground flex items-center gap-1.5 pb-1 font-medium">
-                <ListOrdered className="size-3.5 text-primary" />
-                <span>
-                  Use the Up/Down arrows to rank from Rank #1 (Most Effective) at the top to bottom.
+              <div className="text-xs text-muted-foreground flex items-center justify-between gap-1.5 pb-1 font-medium">
+                <span className="flex items-center gap-1.5">
+                  <ListOrdered className="size-3.5 text-primary" />
+                  Use the Up/Down arrows to rank from Rank #1 (Most Effective) to bottom.
                 </span>
+                {!touchedSJT[currentQ.id] && (
+                  <span className="text-amber-500 font-semibold text-[11px] animate-pulse">
+                    * Reorder items to provide your ranking
+                  </span>
+                )}
               </div>
 
               {(() => {
-                const currentRanking: string[] = Array.isArray(responses[currentQ.id])
-                  ? responses[currentQ.id]
+                const currentRanking: string[] = Array.isArray(sjtRankings[currentQ.id])
+                  ? sjtRankings[currentQ.id]
                   : currentQ.options.map((o) => o.key);
 
                 const optionMap = new Map(currentQ.options.map((o) => [o.key, o]));
@@ -492,7 +640,7 @@ export function AssessmentRunner({ onComplete, onCancel }: AssessmentRunnerProps
                           disabled={isFirst}
                           onClick={() => handleMoveSJT(idx, 'up')}
                           aria-label={`Move ${key} up`}
-                          className="p-1 rounded bg-secondary hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                          className="p-1 rounded bg-secondary hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
                         >
                           <ChevronUp className="size-3.5" />
                         </button>
@@ -501,7 +649,7 @@ export function AssessmentRunner({ onComplete, onCancel }: AssessmentRunnerProps
                           disabled={isLast}
                           onClick={() => handleMoveSJT(idx, 'down')}
                           aria-label={`Move ${key} down`}
-                          className="p-1 rounded bg-secondary hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                          className="p-1 rounded bg-secondary hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
                         >
                           <ChevronDown className="size-3.5" />
                         </button>
