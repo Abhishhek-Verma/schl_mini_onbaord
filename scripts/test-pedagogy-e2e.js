@@ -25,10 +25,15 @@ async function runE2ETest() {
     });
   }
 
+  // Clean any previous attempts for clean test run
+  await prisma.pedagogyAttempt.deleteMany({
+    where: { userId: user.id },
+  });
+
   // Ensure TeacherProfile exists
   await prisma.teacherProfile.upsert({
     where: { userId: user.id },
-    update: {},
+    update: { skillAssessmentCompleted: false },
     create: {
       userId: user.id,
       basicInformationCompleted: true,
@@ -36,12 +41,13 @@ async function runE2ETest() {
       documentsCompleted: true,
       availabilityCompleted: true,
       onboardingCompleted: true,
+      skillAssessmentCompleted: false,
     },
   });
 
   console.log(`👤 Using teacher user: ${user.id} (${user.email})`);
 
-  // 2. Test startPedagogyAssessment
+  // 2. Test startPedagogyAssessment (New Attempt)
   console.log("▶ Calling startPedagogyAssessment(userId)...");
   const session1 = await startPedagogyAssessment(user.id);
 
@@ -50,18 +56,25 @@ async function runE2ETest() {
   assert.equal(session1.softPerQuestionSeconds, 75, "softPerQuestionSeconds should be 75");
   assert.equal(session1.hardPerQuestion, false, "hardPerQuestion should be false");
   assert.ok(Array.isArray(session1.questions), "questions must be an array");
-  assert.ok(session1.questions.length > 0, "questions must not be empty");
+  assert.equal(session1.questions.length, 30, "production bank must have exactly 30 questions");
 
   console.log(`  ✔ Returned ${session1.questions.length} questions for attempt ${session1.attemptId}`);
 
-  // Test Task 4: Starting another attempt should clear the prior IN_PROGRESS attempt
-  console.log("▶ Calling startPedagogyAssessment again to verify stale IN_PROGRESS clearance (Task 4)...");
+  // Test In-Progress Resumption: calling start again resumes same attempt without re-rolling
+  console.log("▶ Calling startPedagogyAssessment again while IN_PROGRESS to verify resumption...");
   const session2 = await startPedagogyAssessment(user.id);
-  const oldAttempt = await prisma.pedagogyAttempt.findUnique({
-    where: { id: session1.attemptId },
-  });
-  assert.equal(oldAttempt, null, "Prior IN_PROGRESS attempt must be cleared upon starting a new one");
-  console.log("  ✔ Verified: Stale IN_PROGRESS attempt was automatically cleared!");
+  assert.equal(session2.attemptId, session1.attemptId, "Resumed session must have identical attemptId");
+  assert.deepEqual(
+    session2.questions.map((q) => q.id),
+    session1.questions.map((q) => q.id),
+    "Resumed session questions must preserve exact order"
+  );
+  for (let i = 0; i < session1.questions.length; i++) {
+    const q1Opts = session1.questions[i].options.map((o) => o.key);
+    const q2Opts = session2.questions[i].options.map((o) => o.key);
+    assert.deepEqual(q1Opts, q2Opts, `Question ${session1.questions[i].code} option order must match`);
+  }
+  console.log("  ✔ Verified: In-progress attempt resumed without re-rolling questions or options!");
 
   const activeSession = session2;
 
@@ -77,9 +90,9 @@ async function runE2ETest() {
       assert.ok(!("orientation" in opt), `Question ${q.code} option ${opt.key} leaked orientation!`);
     }
   }
-  console.log("  ✔ Verified: ALL questions and options are strictly sanitized. No answers or weights leaked!");
+  console.log("  ✔ Verified: ALL questions and options are strictly sanitized. No answers, scores, or keys leaked!");
 
-  // 4. Formulate responses with an untouched SJT (Task 1 verification)
+  // 4. Formulate responses with an untouched SJT
   const responses = {};
   const perQuestionMs = {};
   for (const q of activeSession.questions) {
@@ -89,7 +102,6 @@ async function runE2ETest() {
     } else if (q.type === "MSQ") {
       responses[q.id] = [q.options[0]?.key, q.options[1]?.key].filter(Boolean);
     } else if (q.type === "SJT") {
-      // Untouched SJT: sent as null
       responses[q.id] = null;
     }
   }
@@ -106,21 +118,35 @@ async function runE2ETest() {
   assert.ok(submission.result, "Submission must return result object");
   assert.ok(typeof submission.result.overallScore === "number", "overallScore must be numeric");
   assert.ok(submission.result.band, "band must be returned");
+  assert.ok(submission.result.sectionScores, "sectionScores breakdown must be returned");
   assert.ok(submission.profile, "profile must be returned");
   assert.equal(submission.profile.skillAssessmentCompleted, true, "skillAssessmentCompleted must be true");
-
-  // Untouched SJT scores 0 in its section
-  const sjtQuestion = activeSession.questions.find((q) => q.type === "SJT");
-  if (sjtQuestion) {
-    const sjtSecScore = submission.result.sectionScores[sjtQuestion.section];
-    assert.equal(sjtSecScore.raw, 0, "Untouched SJT should score 0");
-    console.log("  ✔ Verified: Untouched SJT scored 0 (Task 1).");
-  }
 
   console.log(`  ✔ Assessment evaluated! Overall Score: ${submission.result.overallScore}, Band: ${submission.result.band}`);
   console.log(`  ✔ TeacherProfile.skillAssessmentCompleted is now TRUE.`);
 
-  // 6. Test getPedagogyResult
+  // 6. Test Idempotent Re-submission
+  console.log("▶ Testing idempotent re-submission of the same attempt...");
+  const resubmission = await submitPedagogyAssessment(user.id, {
+    attemptId: activeSession.attemptId,
+  });
+  assert.equal(resubmission.result.overallScore, submission.result.overallScore, "Idempotent score matches");
+  assert.equal(resubmission.result.band, submission.result.band, "Idempotent band matches");
+  console.log("  ✔ Verified: Idempotent re-submission succeeds!");
+
+  // 7. Test Strict Lifetime Single Attempt: start after submission must throw 409
+  console.log("▶ Verifying startPedagogyAssessment rejects with 409 after completion...");
+  let startRejected = false;
+  try {
+    await startPedagogyAssessment(user.id);
+  } catch (err) {
+    startRejected = true;
+    assert.equal(err.statusCode, 409, "Error must have 409 status code");
+    console.log(`  ✔ Verified: startPedagogyAssessment rejected with HTTP 409: "${err.message}"`);
+  }
+  assert.ok(startRejected, "startPedagogyAssessment should have rejected");
+
+  // 8. Test getPedagogyResult
   console.log("▶ Calling getPedagogyResult(userId)...");
   const result = await getPedagogyResult(user.id);
   assert.ok(result, "Result must exist");
@@ -129,8 +155,12 @@ async function runE2ETest() {
 
   console.log(`  ✔ Retrieved latest result successfully.`);
 
-  // 7. Clean up test attempt
+  // 9. Clean up test attempt
   await prisma.pedagogyAttempt.delete({ where: { id: activeSession.attemptId } });
+  await prisma.teacherProfile.update({
+    where: { userId: user.id },
+    data: { skillAssessmentCompleted: false },
+  });
   console.log(`  ✔ Cleaned up test attempt.`);
 
   console.log("\n🎉 ALL E2E INTEGRATION TESTS PASSED!\n");

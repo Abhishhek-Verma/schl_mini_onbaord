@@ -52,6 +52,7 @@ async function createSession(user, req = null) {
 
   let onboardingCompleted = false;
   let demoClassCompleted = false;
+  let demoVideoUrl = null;
   let skillAssessmentCompleted = false;
   if (user.role === "TEACHER") {
     const tp = await prisma.teacherProfile.findUnique({
@@ -59,7 +60,9 @@ async function createSession(user, req = null) {
       select: { onboardingCompleted: true, demoClassCompleted: true, demoVideoUrl: true, skillAssessmentCompleted: true },
     });
     onboardingCompleted = tp?.onboardingCompleted || false;
-    demoClassCompleted = Boolean(tp?.demoClassCompleted && tp?.demoVideoUrl);
+    const hasDemoUrl = Boolean(tp?.demoVideoUrl && tp.demoVideoUrl.trim().length > 0);
+    demoClassCompleted = hasDemoUrl || Boolean(tp?.demoClassCompleted);
+    demoVideoUrl = tp?.demoVideoUrl || null;
     skillAssessmentCompleted = Boolean(tp?.skillAssessmentCompleted);
   } else if (user.role === "PRINCIPAL") {
     const pp = await prisma.principalProfile.findUnique({
@@ -76,6 +79,7 @@ async function createSession(user, req = null) {
       ...userWithoutSecrets,
       onboardingCompleted,
       demoClassCompleted,
+      demoVideoUrl,
       skillAssessmentCompleted,
     },
     accessToken,
@@ -611,6 +615,7 @@ export async function getUserProfile(userId) {
           documentsCompleted: true,
           skillAssessmentCompleted: true,
           demoClassCompleted: true,
+          demoVideoUrl: true,
           passportScoreCompleted: true,
           availabilityCompleted: true,
         },
@@ -641,10 +646,14 @@ export async function getUserProfile(userId) {
       ? principalProfile?.onboardingCompleted || false
       : false;
 
+  const hasDemoUrl = Boolean(teacherProfile?.demoVideoUrl && teacherProfile.demoVideoUrl.trim().length > 0);
+  const demoClassCompleted = hasDemoUrl || Boolean(teacherProfile?.demoClassCompleted);
+
   return {
     ...userData,
     onboardingCompleted,
-    demoClassCompleted: Boolean(teacherProfile?.demoClassCompleted && teacherProfile?.demoVideoUrl),
+    demoClassCompleted,
+    demoVideoUrl: teacherProfile?.demoVideoUrl || null,
     skillAssessmentCompleted: Boolean(teacherProfile?.skillAssessmentCompleted),
     teacherProfile: teacherProfile || null,
     principalProfile: principalProfile || null,

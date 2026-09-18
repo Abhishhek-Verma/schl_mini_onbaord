@@ -11,7 +11,10 @@ export interface User {
   isEmailVerified?: boolean;
   onboardingCompleted?: boolean;
   demoClassCompleted?: boolean;
+  demoVideoUrl?: string | null;
   skillAssessmentCompleted?: boolean;
+  teacherProfile?: any;
+  principalProfile?: any;
 }
 
 interface AuthState {

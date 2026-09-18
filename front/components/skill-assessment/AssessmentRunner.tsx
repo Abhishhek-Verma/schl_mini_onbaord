@@ -385,13 +385,31 @@ export function AssessmentRunner({ onComplete, onCancel }: AssessmentRunnerProps
 
   // Error state during start
   if (error && questions.length === 0) {
+    const isCompleted =
+      error.toLowerCase().includes('already completed') ||
+      error.toLowerCase().includes('conflict');
+
     return (
-      <div className="bg-card border border-destructive/30 rounded-xl p-8 max-w-xl mx-auto text-center space-y-4">
-        <div className="size-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mx-auto">
-          <AlertCircle className="size-6" />
+      <div
+        className={`bg-card border ${
+          isCompleted ? 'border-border' : 'border-destructive/30'
+        } rounded-xl p-8 max-w-xl mx-auto text-center space-y-4`}
+      >
+        <div
+          className={`size-12 rounded-full ${
+            isCompleted
+              ? 'bg-emerald-500/10 text-emerald-500'
+              : 'bg-destructive/10 text-destructive'
+          } flex items-center justify-center mx-auto`}
+        >
+          {isCompleted ? (
+            <CheckCircle2 className="size-6" />
+          ) : (
+            <AlertCircle className="size-6" />
+          )}
         </div>
         <h3 className="font-heading font-bold text-lg text-foreground">
-          Assessment Unavailable
+          {isCompleted ? 'Assessment Already Completed' : 'Assessment Unavailable'}
         </h3>
         <p className="text-sm text-muted-foreground">{error}</p>
         <div className="pt-2 flex justify-center gap-3">
@@ -399,7 +417,7 @@ export function AssessmentRunner({ onComplete, onCancel }: AssessmentRunnerProps
             <button
               type="button"
               onClick={onCancel}
-              className="px-4 py-2 text-xs font-semibold rounded-md border border-border hover:bg-muted transition-colors cursor-pointer"
+              className="px-4 py-2 text-xs font-semibold rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
             >
               Back to Dashboard
             </button>

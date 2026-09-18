@@ -134,7 +134,8 @@ export async function submitPedagogyAssessmentHandler(req, res, next) {
 
 export async function getPedagogyResultHandler(req, res, next) {
   try {
-    res.json(await getPedagogyResult(req.user.id));
+    const result = await getPedagogyResult(req.user.id);
+    res.json({ result, ...(result || {}) });
   } catch (e) {
     next(e);
   }

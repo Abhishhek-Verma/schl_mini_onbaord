@@ -241,7 +241,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       title: "Demo Class",
       url: "/teacher?section=demo",
       icon: <VideoIcon className="size-4" />,
-      badge: user?.demoClassCompleted ? undefined : "New",
+      badge: (user?.demoClassCompleted || Boolean(user?.demoVideoUrl && user.demoVideoUrl.trim().length > 0) || Boolean(user?.teacherProfile?.demoVideoUrl && user.teacherProfile.demoVideoUrl.trim().length > 0)) ? undefined : "New",
     },
     {
       title: "Skill Assessment",

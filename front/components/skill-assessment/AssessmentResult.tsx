@@ -6,10 +6,11 @@ import {
   CheckCircle2,
   AlertTriangle,
   ArrowLeft,
-  RotateCcw,
   Sparkles,
   BarChart3,
   Check,
+  ShieldCheck,
+  Calendar,
 } from 'lucide-react';
 
 export interface SectionScoreItem {
@@ -35,11 +36,22 @@ export interface AssessmentResultData {
 interface AssessmentResultProps {
   result: AssessmentResultData;
   onBack: () => void;
-  onRetake?: () => void;
 }
 
-export function AssessmentResult({ result, onBack, onRetake }: AssessmentResultProps) {
+export function AssessmentResult({ result, onBack }: AssessmentResultProps) {
   const { overallScore = 0, band = 'Developing', sectionScores = {}, flags = [] } = result;
+
+  const formattedDate = result.submittedAt
+    ? new Date(result.submittedAt).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+    : new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
 
   // Visual styling based on band
   const getBandBadgeStyle = (b: string) => {
@@ -67,17 +79,22 @@ export function AssessmentResult({ result, onBack, onRetake }: AssessmentResultP
         <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6">
           <div className="space-y-2 text-center sm:text-left">
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-primary">
-                Pedagogy Competency Assessment
-              </span>
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                 <CheckCircle2 className="size-3" />
-                Verified & Completed
+                Assessment Complete and Verified
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 border border-blue-500/30 px-2.5 py-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400">
+                <ShieldCheck className="size-3" />
+                Proficiency Verified
               </span>
             </div>
             <h2 className="font-heading text-2xl sm:text-3xl font-bold text-foreground">
               Assessment Results
             </h2>
+            <div className="flex items-center justify-center sm:justify-start gap-1.5 text-xs text-muted-foreground pt-0.5">
+              <Calendar className="size-3.5 text-primary" />
+              <span>Evaluation Date: {formattedDate}</span>
+            </div>
             <p className="text-xs sm:text-sm text-muted-foreground max-w-lg">
               Your pedagogical evaluation has been processed and saved to your teacher profile.
               Schools will see your certified pedagogy proficiency badge on matching vacancies.
@@ -191,17 +208,6 @@ export function AssessmentResult({ result, onBack, onRetake }: AssessmentResultP
           <ArrowLeft className="size-3.5" />
           <span>Back to Dashboard</span>
         </button>
-
-        {onRetake && (
-          <button
-            type="button"
-            onClick={onRetake}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-md border border-border bg-background text-xs font-semibold hover:bg-muted transition-colors cursor-pointer"
-          >
-            <RotateCcw className="size-3.5 text-muted-foreground" />
-            <span>Retake Assessment</span>
-          </button>
-        )}
       </div>
     </div>
   );
