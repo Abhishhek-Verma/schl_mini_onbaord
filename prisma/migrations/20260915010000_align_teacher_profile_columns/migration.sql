@@ -1,0 +1,10 @@
+ALTER TABLE "TeacherProfile" ADD COLUMN IF NOT EXISTS "profilePhoto" TEXT;
+ALTER TABLE "TeacherProfile" ADD COLUMN IF NOT EXISTS "bed" TEXT;
+ALTER TABLE "TeacherProfile" ADD COLUMN IF NOT EXISTS "deled" TEXT;
+ALTER TABLE "TeacherProfile" ADD COLUMN IF NOT EXISTS "otherQualifications" TEXT;
+ALTER TABLE "TeacherProfile" ADD COLUMN IF NOT EXISTS "certifications" TEXT;
+ALTER TABLE "TeacherProfile" ADD COLUMN IF NOT EXISTS "teachingMethodology" TEXT;
+ALTER TABLE "TeacherProfile" ADD COLUMN IF NOT EXISTS "awards" TEXT;
+ALTER TABLE "TeacherProfile" ADD COLUMN IF NOT EXISTS "basicInformationCompleted" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "TeacherProfile" ADD COLUMN IF NOT EXISTS "profileCompletionCompleted" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "TeacherProfile" ADD COLUMN IF NOT EXISTS "onboardingCompleted" BOOLEAN NOT NULL DEFAULT false;

@@ -1,0 +1,213 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                    String          @id @default(uuid())
+  username              String          @unique
+  email                 String          @unique
+  password              String?
+  googleId              String?         @unique
+  displayName           String
+  phoneNumber           String?
+  avatar                String?
+  role                  Role?
+  isEmailVerified       Boolean         @default(false)
+  verificationOTP       String?
+  verificationOTPExpiry DateTime?
+  resetToken            String?
+  resetTokenExpiry      DateTime?
+  resetOTP              String?
+  resetOTPExpiry        DateTime?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  RefreshToken          RefreshToken[]
+  teacherProfile        TeacherProfile?
+  teacherDocuments      TeacherDocument[]
+  principalProfile      PrincipalProfile?
+  principalDocuments    PrincipalDocument[]
+
+  @@index([username])
+  @@index([email])
+}
+
+model RefreshToken {
+  id         String   @id @default(uuid())
+  token      String   @unique @default(uuid())
+  userId     String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+  ipAddress  String?
+  userAgent  String?
+  deviceName String?
+  browser    String?
+  os         String?
+  User       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUPER_ADMIN
+  AGENT
+  SUPPORT_AGENT
+  BILLING_ADMIN
+  SALES_ONBOARDING
+  SALES_ADMIN
+  SCHOOL_OWNER
+  SCHOOL_ADMIN
+  PRINCIPAL
+  TEACHER
+  ACCOUNTANT
+  PARENT
+  STUDENT
+}
+
+enum TeacherEmploymentPreference {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  SUBSTITUTE
+  TEMPORARY
+}
+
+model TeacherDocument {
+  id           String             @id @default(uuid())
+  userId       String
+  documentType String
+  documentName String?
+  slot         Int                @default(1)
+  fileName     String
+  storageKey   String             @unique
+  mimeType     String
+  sizeBytes    Int
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, documentType, slot])
+  @@index([userId])
+}
+
+model TeacherProfile {
+  id                         String                       @id @default(uuid())
+  userId                     String                       @unique
+  profilePhoto               String?
+  dateOfBirth                DateTime?
+  gender                     String?
+  location                   String?
+  contactInformation         String?
+  languages                  Json?
+  preferredTeachingLocation  String?
+  preferredTeachingLocations Json?
+  currentLocation            Json?
+  preferredLocations         Json?
+  preferredSalary            Int?
+  expectedJoiningDate        DateTime?
+  employmentPreference       TeacherEmploymentPreference?
+  employmentPreferences      Json?
+  aboutMe                    String?
+  education                  String?
+  bed                        String?
+  deled                      String?
+  otherQualifications        String?
+  certifications             String?
+  teachingExperience         String?
+  previousSchools            Json?
+  subjects                   Json?
+  classesTaught              Json?
+  boardExperience            Json?
+  teachingMethodology        String?
+  skills                     Json?
+  achievements               String?
+  awards                     String?
+  demoVideoUrl               String?
+  passportScore              Int?                         @default(80)
+  noticePeriod               String?
+  availableWorkingDays       Json?
+  workingHoursStart          String?
+  workingHoursEnd            String?
+  availableFrom              DateTime?
+  basicInformationCompleted  Boolean                      @default(false)
+  profileCompletionCompleted Boolean                      @default(false)
+  documentsCompleted         Boolean                      @default(false)
+  skillAssessmentCompleted   Boolean                      @default(false)
+  demoClassCompleted         Boolean                      @default(false)
+  passportScoreCompleted     Boolean                      @default(false)
+  availabilityCompleted      Boolean                      @default(false)
+  onboardingCompleted        Boolean                      @default(false)
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime                     @updatedAt
+  user                       User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([basicInformationCompleted])
+  @@index([profileCompletionCompleted])
+}
+
+model PrincipalDocument {
+  id                 String   @id @default(uuid())
+  userId             String
+  documentType       String
+  documentName       String?
+  slot               Int      @default(1)
+  fileName           String
+  storageKey         String   @unique
+  mimeType           String
+  sizeBytes          Int
+  verificationStatus String   @default("PENDING_REVIEW")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, documentType, slot])
+  @@index([userId])
+}
+
+model PrincipalProfile {
+  id                         String    @id @default(uuid())
+  userId                     String    @unique
+  profilePhoto               String?
+  dateOfBirth                DateTime?
+  gender                     String?
+  contactInformation         String?
+  aboutMe                    String?
+  
+  // Leadership & School Details
+  currentSchoolName          String?
+  boardAffiliation           String?
+  schoolAddress              String?
+  schoolContactNumber        String?
+  adminExperienceYears       String?
+  education                  Json?
+  highestQualification       String?
+  previousInstitutions       Json?
+  certifications             Json?
+  achievements               String?
+  awards                     String?
+  
+  // Progress Flags
+  basicInformationCompleted  Boolean   @default(false)
+  profileCompletionCompleted Boolean   @default(false)
+  documentsCompleted         Boolean   @default(false)
+  onboardingCompleted        Boolean   @default(false)
+  
+  // Verification by non-teacher / admin team
+  verificationStatus         String    @default("PENDING")
+  verifiedAt                 DateTime?
+  
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+  user                       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([basicInformationCompleted])
+  @@index([profileCompletionCompleted])
+  @@index([onboardingCompleted])
+}
+

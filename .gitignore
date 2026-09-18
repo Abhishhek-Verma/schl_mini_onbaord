@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+/.pnp
+.pnp.*
+package-lock.json
+front/package-lock.json
+
+# Environment variables & secrets (CRITICAL: never commit credentials)
+.env
+.env.*
+*.env
+!.env.example
+front/.env
+front/.env.*
+!front/.env.example
+
+# Documentation & Markdown files (Excluded from GitHub repository as requested)
+*.md
+**/*.md
+
+# Build outputs & caches
+.next/
+front/.next/
+out/
+front/out/
+build/
+front/build/
+dist/
+/generated/prisma
+.vercel/
+front/.vercel/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# System & OS metadata
+.DS_Store
+Thumbs.db
+*.pem
+*.tsbuildinfo
+next-env.d.ts
+
+# Editor & IDE configurations
+.vscode/
+.idea/
+
+# AI Agent directories and configuration locks
+.agents/
+.claude/
+.windsurf/
+.gemini/
+skills-lock.json
+.goal/
+sc_instant/
