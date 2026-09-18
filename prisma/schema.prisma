@@ -151,6 +151,10 @@ model TeacherProfile {
   demoClassCompleted         Boolean                      @default(false)
   demoEvaluationCompleted    Boolean                      @default(false)
   passportScoreCompleted     Boolean                      @default(false)
+  holisticScore              Float?
+  holisticBand               String?
+  holisticBreakdown          Json?
+  holisticComputedAt         DateTime?
   availabilityCompleted      Boolean                      @default(false)
   onboardingCompleted        Boolean                      @default(false)
   createdAt                  DateTime                     @default(now())
@@ -354,6 +358,7 @@ model DemoEvaluation {
   transcriptSource String?
   assignedTopics   Json
   status           DemoEvalStatus @default(PENDING)
+  extractionMode   String?
   transcript       String?
   facts            Json?
   subScores        Json?

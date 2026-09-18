@@ -318,6 +318,14 @@ export async function submitSubjectAssessment(userId, input = {}) {
     });
     await syncSkillAssessmentFlag(userId);
     updatedProfile = await prisma.teacherProfile.findUnique({ where: { userId } });
+
+    // Auto-recompute holistic score
+    try {
+      const { computeAndStoreHolistic } = await import("./holisticScore.service.js");
+      await computeAndStoreHolistic(userId);
+    } catch (holisticErr) {
+      console.warn("Could not auto-recompute holistic score after subject submit:", holisticErr.message);
+    }
   } catch (err) {
     throw validationError("Complete your profile before the skill assessment.");
   }

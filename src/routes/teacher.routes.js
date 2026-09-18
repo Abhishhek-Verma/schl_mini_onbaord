@@ -24,6 +24,7 @@ import {
   submitSubjectAssessmentHandler,
   getSubjectResultHandler,
   getAssignedTopicsHandler,
+  getTeacherScoreHandler,
 } from "../controllers/teacher.controller.js";
 
 const router = Router();
@@ -44,6 +45,7 @@ router.put("/onboarding/demo-class", ...teacherOnly, saveDemoClassHandler);
 router.get("/onboarding/demo-class/evaluation", ...teacherOnly, getDemoEvaluationHandler);
 router.post("/onboarding/demo-class/recompute", ...teacherOnly, recomputeDemoEvaluationHandler);
 router.put("/onboarding/passport-score", ...teacherOnly, saveTeacherPassportHandler);
+router.get("/score", ...teacherOnly, getTeacherScoreHandler);
 router.put("/onboarding/availability", ...teacherOnly, saveAvailabilityHandler);
 router.get("/location/search", searchLocationHandler);
 router.get("/location/reverse", reverseGeocodeHandler);

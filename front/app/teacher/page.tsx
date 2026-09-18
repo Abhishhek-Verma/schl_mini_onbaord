@@ -43,6 +43,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { fetchApi } from '@/lib/api';
+import { UnifiedScoreView } from '@/components/skill-assessment/UnifiedScoreView';
 import { AssessmentRunner } from '@/components/skill-assessment/AssessmentRunner';
 import { AssessmentResult } from '@/components/skill-assessment/AssessmentResult';
 import { SubjectAssessmentRunner } from '@/components/skill-assessment/SubjectAssessmentRunner';
@@ -5167,6 +5168,7 @@ function TeacherDashboard({
 
   const [demoEvaluation, setDemoEvaluation] = useState<any | null>(null);
   const [loadingDemoEval, setLoadingDemoEval] = useState(false);
+  const [holisticScoreData, setHolisticScoreData] = useState<any | null>(null);
 
   useEffect(() => {
     if (isDemoCompleted || demoVideoUrl) {
@@ -5179,6 +5181,14 @@ function TeacherDashboard({
         .finally(() => setLoadingDemoEval(false));
     }
   }, [isDemoCompleted, demoVideoUrl]);
+
+  useEffect(() => {
+    fetchApi('/teacher/score')
+      .then((res) => {
+        if (res) setHolisticScoreData(res);
+      })
+      .catch((e) => console.warn('Could not load holistic score:', e));
+  }, [isDemoCompleted, isSkillCompleted]);
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
@@ -5209,6 +5219,15 @@ function TeacherDashboard({
           </div>
         </div>
       </div>
+
+      {/* Holistic Teacher Score (Part B) */}
+      {holisticScoreData && (
+        <UnifiedScoreView
+          holisticData={holisticScoreData}
+          title="My Teacher Profile Score"
+          subtitle="Your comprehensive pedagogical score combining Subject Knowledge, Pedagogical Judgment, Teaching Demo, and Professional Experience."
+        />
+      )}
 
       {/* Hero Action: Onboarding Details Button */}
       <div className="bg-card border border-border rounded-xl p-6 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:border-primary/40 transition-colors">
@@ -5385,6 +5404,13 @@ function TeacherDashboard({
                     Score: <span className="text-primary text-base font-heading">{demoEvaluation.demoScore}</span> / 100
                   </div>
                 </div>
+
+                {demoEvaluation.extractionMode === 'SIMULATED' && (
+                  <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                    <AlertCircle className="size-3.5 shrink-0 text-amber-600" />
+                    <span>Simulated evaluation — not a real AI assessment.</span>
+                  </div>
+                )}
 
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 text-xs">
                   <div className="rounded-lg border border-border/80 bg-background/80 p-2.5 space-y-1">

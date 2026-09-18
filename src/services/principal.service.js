@@ -382,6 +382,14 @@ export async function getCandidateEvaluation(principalUserId, teacherUserId) {
     throw error;
   }
 
+  let holistic = null;
+  try {
+    const { getHolisticScore } = await import("./holisticScore.service.js");
+    holistic = await getHolisticScore(teacherUserId);
+  } catch (hErr) {
+    console.warn("Could not retrieve holistic score for candidate:", hErr.message);
+  }
+
   return {
     candidate: {
       id: teacher.id,
@@ -392,6 +400,7 @@ export async function getCandidateEvaluation(principalUserId, teacherUserId) {
       profile: teacher.teacherProfile,
     },
     demoEvaluation: teacher.demoEvaluation,
+    holistic,
   };
 }
 

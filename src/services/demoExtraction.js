@@ -169,6 +169,7 @@ export function simulateExtractionFromTranscript(transcript, assignedTopics = []
     },
     mediaUsable: true,
     offTopic: false,
+    extractionMode: "SIMULATED",
   };
 }
 
@@ -275,6 +276,7 @@ Return NO prose, NO markdown ticks, NO code blocks. Only raw, valid JSON.`;
     if (!validateFactsSchema(parsed)) {
       throw new Error("Extracted JSON does not match required schema.");
     }
+    parsed.extractionMode = "AI";
     return parsed;
   }
 

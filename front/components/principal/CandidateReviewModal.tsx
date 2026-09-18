@@ -23,6 +23,7 @@ import {
   X,
 } from 'lucide-react';
 import { fetchApi } from '@/lib/api';
+import { UnifiedScoreView } from '@/components/skill-assessment/UnifiedScoreView';
 
 function getYouTubeEmbedUrl(urlOrId: string | null | undefined): string | null {
   if (!urlOrId) return null;
@@ -47,14 +48,26 @@ export function CandidateReviewModal({
   onClose,
   onDecisionChange,
 }: CandidateReviewModalProps) {
-  const [loading, setLoading] = useState(false);
+  const [candidateData, setCandidateData] = useState<any>(candidate);
   const [decisionLoading, setDecisionLoading] = useState(false);
   const [decisionMessage, setDecisionMessage] = useState<string | null>(null);
   const [showTranscript, setShowTranscript] = useState(false);
   const [decisionNotes, setDecisionNotes] = useState('');
 
-  const evaluation = candidate?.demoEvaluation;
-  const profile = candidate?.profile || candidate?.teacherProfile;
+  // Fetch full evaluation details (including holistic score payload)
+  useState(() => {
+    if (candidate?.id) {
+      fetchApi(`/principal/candidates/${candidate.id}/evaluation`)
+        .then((res) => {
+          if (res) setCandidateData((prev: any) => ({ ...prev, ...res }));
+        })
+        .catch((e) => console.warn('Could not fetch candidate evaluation detail:', e));
+    }
+  });
+
+  const evaluation = candidateData?.demoEvaluation || candidate?.demoEvaluation;
+  const profile = candidateData?.profile || candidate?.profile || candidate?.teacherProfile;
+  const holistic = candidateData?.holistic;
   const status = evaluation?.status || 'NOT_SUBMITTED';
 
   const embedUrl =
@@ -180,6 +193,13 @@ export function CandidateReviewModal({
             </div>
           ) : status === 'PROCESSED' ? (
             <>
+              {evaluation?.extractionMode === 'SIMULATED' && (
+                <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                  <AlertTriangle className="size-4 shrink-0 text-amber-600" />
+                  <span>Simulated evaluation — not a real AI assessment.</span>
+                </div>
+              )}
+
               {/* Score & Band Header */}
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-4 flex flex-col justify-center">
@@ -381,6 +401,18 @@ export function CandidateReviewModal({
           ) : (
             <div className="text-center py-8 text-muted-foreground text-xs">
               Candidate has not submitted a demo video yet.
+            </div>
+          )}
+
+          {/* Holistic Score Summary (Part B) */}
+          {holistic && (
+            <div className="pt-4 border-t border-border space-y-3">
+              <UnifiedScoreView
+                holisticData={holistic}
+                title="Holistic Candidate Profile Score"
+                subtitle="Complete pedagogical passport combining cognitive tests, live demo execution, and verified teaching experience."
+                isPrincipalView={true}
+              />
             </div>
           )}
         </div>

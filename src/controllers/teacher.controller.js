@@ -28,6 +28,7 @@ import {
   getDemoEvaluation,
   recomputeDemoEvaluation,
 } from "../services/demoEvaluation.service.js";
+import { getHolisticScore } from "../services/holisticScore.service.js";
 
 export async function getTeacherOnboardingHandler(req, res, next) {
   try {
@@ -102,6 +103,15 @@ export async function recomputeDemoEvaluationHandler(req, res, next) {
   try {
     const evaluation = await recomputeDemoEvaluation(req.user.id);
     res.json({ evaluation });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getTeacherScoreHandler(req, res, next) {
+  try {
+    const result = await getHolisticScore(req.user.id);
+    res.json(result);
   } catch (error) {
     next(error);
   }
