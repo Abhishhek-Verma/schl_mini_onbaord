@@ -42,6 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { CandidateReviewModal } from '@/components/principal/CandidateReviewModal';
 
 // -------------------------------------------------------------------------
 // Types & Steps Definition
@@ -1325,6 +1326,25 @@ function PrincipalSectionView({ sectionKey, profile, user, documents, onEdit, on
 // -------------------------------------------------------------------------
 function PrincipalDashboard({ user, profile, documents, onNavigate }: any) {
   const isVerified = profile?.verificationStatus === 'VERIFIED';
+  const [candidates, setCandidates] = useState<any[]>([]);
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
+  const [selectedCandidate, setSelectedCandidate] = useState<any | null>(null);
+
+  const fetchCandidates = async () => {
+    try {
+      setLoadingCandidates(true);
+      const res = await fetchApi('/principal/candidates');
+      setCandidates(res?.candidates || []);
+    } catch (e) {
+      console.warn('Failed to load candidates:', e);
+    } finally {
+      setLoadingCandidates(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCandidates();
+  }, []);
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
@@ -1509,6 +1529,112 @@ function PrincipalDashboard({ user, profile, documents, onNavigate }: any) {
           </div>
         </div>
       </div>
+
+      {/* Candidate Review Surface (Part A Spec A8) */}
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-heading text-lg font-bold flex items-center gap-2">
+              <Users className="size-5 text-primary" />
+              Teacher Candidates & Demo Class Evaluation Desk
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Review certified teaching candidates, in-app demo video playback, AI pedagogical facts, sub-scores, and competency metrics.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={fetchCandidates}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-secondary text-xs font-semibold text-secondary-foreground hover:bg-secondary/80 transition-colors cursor-pointer"
+          >
+            {loadingCandidates ? <LoaderCircle className="size-3.5 animate-spin" /> : <Clock className="size-3.5" />}
+            <span>Refresh Candidates</span>
+          </button>
+        </div>
+
+        {loadingCandidates && candidates.length === 0 ? (
+          <div className="flex items-center justify-center py-10 text-muted-foreground text-xs gap-2">
+            <LoaderCircle className="size-4 animate-spin text-primary" />
+            <span>Loading candidates...</span>
+          </div>
+        ) : candidates.length === 0 ? (
+          <div className="text-center py-8 border border-dashed border-border rounded-xl text-muted-foreground text-xs">
+            No registered teacher candidates found yet.
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {candidates.map((cand) => {
+              const evalData = cand.demoEvaluation;
+              const evalStatus = evalData?.status || 'NOT_SUBMITTED';
+              const demoScore = evalData?.demoScore;
+              const band = evalData?.band;
+
+              return (
+                <div
+                  key={cand.id}
+                  className="rounded-xl border border-border bg-background p-4 flex flex-col justify-between hover:border-primary/50 transition-all shadow-xs"
+                >
+                  <div className="space-y-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="size-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                          {cand.displayName?.[0] || 'T'}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-bold text-foreground truncate">
+                            {cand.displayName || cand.email}
+                          </h4>
+                          <p className="text-[11px] text-muted-foreground truncate">{cand.email}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-border/60 flex items-center justify-between text-xs">
+                      <span className="text-[11px] text-muted-foreground font-medium">Demo Status:</span>
+                      {evalStatus === 'PROCESSED' ? (
+                        <span className="inline-flex items-center gap-1 font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full text-[11px]">
+                          <CheckCircle2 className="size-3" />
+                          {demoScore != null ? `${demoScore}/100 (${band})` : 'Evaluated'}
+                        </span>
+                      ) : evalStatus === 'PROCESSING' || evalStatus === 'PENDING' ? (
+                        <span className="inline-flex items-center gap-1 text-blue-500 bg-blue-500/10 px-2 py-0.5 rounded-full text-[11px] font-semibold">
+                          <LoaderCircle className="size-3 animate-spin" /> In Progress
+                        </span>
+                      ) : evalStatus === 'FAILED' ? (
+                        <span className="inline-flex items-center gap-1 text-destructive bg-destructive/10 px-2 py-0.5 rounded-full text-[11px] font-semibold">
+                          <AlertCircle className="size-3" /> Evaluation Failed
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                          No Demo Submitted
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCandidate(cand)}
+                    className="mt-4 w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-secondary hover:bg-secondary/80 text-secondary-foreground py-2 text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    <span>Review Evaluation</span>
+                    <ArrowRight className="size-3" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Candidate Review Modal */}
+      {selectedCandidate && (
+        <CandidateReviewModal
+          candidate={selectedCandidate}
+          onClose={() => setSelectedCandidate(null)}
+          onDecisionChange={fetchCandidates}
+        />
+      )}
     </div>
   );
 }

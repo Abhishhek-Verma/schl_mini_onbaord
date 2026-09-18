@@ -32,6 +32,7 @@ model User {
   principalDocuments    PrincipalDocument[]
   pedagogyAttempts      PedagogyAttempt[]
   subjectAttempts       SubjectAttempt[]
+  demoEvaluation        DemoEvaluation?
 
   @@index([username])
   @@index([email])
@@ -148,6 +149,7 @@ model TeacherProfile {
   subjectAssessmentCompleted Boolean                      @default(false)
   skillAssessmentCompleted   Boolean                      @default(false)
   demoClassCompleted         Boolean                      @default(false)
+  demoEvaluationCompleted    Boolean                      @default(false)
   passportScoreCompleted     Boolean                      @default(false)
   availabilityCompleted      Boolean                      @default(false)
   onboardingCompleted        Boolean                      @default(false)
@@ -334,6 +336,37 @@ model SubjectAttempt {
   user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([status])
+}
+
+enum DemoEvalStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+model DemoEvaluation {
+  id               String         @id @default(uuid())
+  userId           String         @unique
+  videoUrl         String
+  videoId          String?
+  transcriptSource String?
+  assignedTopics   Json
+  status           DemoEvalStatus @default(PENDING)
+  transcript       String?
+  facts            Json?
+  subScores        Json?
+  demoScore        Float?
+  band             String?
+  completions      Json?
+  flags            Json?
+  errorMessage     String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  processedAt      DateTime?
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([status])
 }
 

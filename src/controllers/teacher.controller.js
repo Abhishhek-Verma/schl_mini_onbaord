@@ -24,6 +24,10 @@ import {
   getSubjectResult,
   getSubjectAssignedTopics,
 } from "../services/subject.service.js";
+import {
+  getDemoEvaluation,
+  recomputeDemoEvaluation,
+} from "../services/demoEvaluation.service.js";
 
 export async function getTeacherOnboardingHandler(req, res, next) {
   try {
@@ -80,6 +84,24 @@ export async function saveDocumentsStepHandler(req, res, next) {
 export async function saveDemoClassHandler(req, res, next) {
   try {
     res.json(await saveDemoClass(req.user.id, req.body));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getDemoEvaluationHandler(req, res, next) {
+  try {
+    const evaluation = await getDemoEvaluation(req.user.id);
+    res.json({ evaluation });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function recomputeDemoEvaluationHandler(req, res, next) {
+  try {
+    const evaluation = await recomputeDemoEvaluation(req.user.id);
+    res.json({ evaluation });
   } catch (error) {
     next(error);
   }

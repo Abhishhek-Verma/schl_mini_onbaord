@@ -7,6 +7,8 @@ import {
   generatePresignedUploadUrl,
 } from "../utils/r2.js";
 import { SUBJECTS, CLASS_MIN, CLASS_MAX, BOARDS } from "../config/subjectAssessment.js";
+import { extractYouTubeVideoId } from "./demoTranscript.js";
+import { enqueueDemoEvaluation, getDemoEvaluation, recomputeDemoEvaluation } from "./demoEvaluation.service.js";
 
 const EMPLOYMENT_PREFERENCES = ["FULL_TIME", "PART_TIME", "CONTRACT", "SUBSTITUTE", "TEMPORARY"];
 const BOARD_EXPERIENCE = ["CBSE", "ICSE", "STATE_BOARD", "IB", "OTHER"];
@@ -349,6 +351,16 @@ export async function saveDemoClass(userId, input) {
   if (!demoVideoUrl) {
     throw validationError("Demo class YouTube video URL is required.");
   }
+
+  const videoId = extractYouTubeVideoId(demoVideoUrl);
+  if (!videoId) {
+    throw validationError("Please provide a valid public YouTube video link.");
+  }
+
+  const currentProfile = await prisma.teacherProfile.findUnique({
+    where: { userId },
+  });
+
   const updated = await prisma.teacherProfile.update({
     where: { userId },
     data: {
@@ -356,7 +368,19 @@ export async function saveDemoClass(userId, input) {
       demoClassCompleted: true,
     },
   });
-  return { profile: serializeProfile(updated) };
+
+  const evaluation = await enqueueDemoEvaluation(
+    userId,
+    demoVideoUrl,
+    videoId,
+    currentProfile?.demoAssignedTopics || []
+  );
+
+  return {
+    profile: serializeProfile(updated),
+    videoId,
+    evaluationStatus: evaluation.status,
+  };
 }
 
 export async function saveTeacherPassport(userId, input) {

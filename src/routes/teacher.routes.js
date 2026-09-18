@@ -11,6 +11,8 @@ import {
   deleteTeacherDocumentHandler,
   saveDocumentsStepHandler,
   saveDemoClassHandler,
+  getDemoEvaluationHandler,
+  recomputeDemoEvaluationHandler,
   saveTeacherPassportHandler,
   saveAvailabilityHandler,
   searchLocationHandler,
@@ -39,6 +41,8 @@ router.post("/onboarding/subject-assessment/submit", ...teacherOnly, submitSubje
 router.get("/onboarding/subject-assessment/result", ...teacherOnly, getSubjectResultHandler);
 router.get("/onboarding/demo-class/assigned-topics", ...teacherOnly, getAssignedTopicsHandler);
 router.put("/onboarding/demo-class", ...teacherOnly, saveDemoClassHandler);
+router.get("/onboarding/demo-class/evaluation", ...teacherOnly, getDemoEvaluationHandler);
+router.post("/onboarding/demo-class/recompute", ...teacherOnly, recomputeDemoEvaluationHandler);
 router.put("/onboarding/passport-score", ...teacherOnly, saveTeacherPassportHandler);
 router.put("/onboarding/availability", ...teacherOnly, saveAvailabilityHandler);
 router.get("/location/search", searchLocationHandler);

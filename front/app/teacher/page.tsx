@@ -5165,6 +5165,21 @@ function TeacherDashboard({
     [demoVideoUrl]
   );
 
+  const [demoEvaluation, setDemoEvaluation] = useState<any | null>(null);
+  const [loadingDemoEval, setLoadingDemoEval] = useState(false);
+
+  useEffect(() => {
+    if (isDemoCompleted || demoVideoUrl) {
+      setLoadingDemoEval(true);
+      fetchApi('/teacher/onboarding/demo-class/evaluation')
+        .then((res) => {
+          if (res?.evaluation) setDemoEvaluation(res.evaluation);
+        })
+        .catch(() => {})
+        .finally(() => setLoadingDemoEval(false));
+    }
+  }, [isDemoCompleted, demoVideoUrl]);
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
       {/* Welcome Banner */}
@@ -5354,6 +5369,87 @@ function TeacherDashboard({
                 Enter a valid YouTube link to preview your demo lesson.
               </div>
             ) : null}
+
+            {/* Demo Class Evaluation Result Card (Part A) */}
+            {demoEvaluation?.status === 'PROCESSED' && (
+              <div className="rounded-xl border border-primary/25 bg-gradient-to-br from-primary/5 via-card to-background p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="size-4 text-primary" />
+                    <span className="text-xs font-bold text-foreground">AI Demo Class Evaluation</span>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30">
+                      Band: {demoEvaluation.band || 'Adequate'}
+                    </span>
+                  </div>
+                  <div className="text-xs font-extrabold text-foreground">
+                    Score: <span className="text-primary text-base font-heading">{demoEvaluation.demoScore}</span> / 100
+                  </div>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 text-xs">
+                  <div className="rounded-lg border border-border/80 bg-background/80 p-2.5 space-y-1">
+                    <div className="flex justify-between font-semibold text-muted-foreground">
+                      <span>Subject Delivery (30%)</span>
+                      <span className="font-bold text-foreground">{demoEvaluation.subScores?.subjectDelivery ?? '—'}%</span>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-border/80 bg-background/80 p-2.5 space-y-1">
+                    <div className="flex justify-between font-semibold text-muted-foreground">
+                      <span>Clarity & Pace (20%)</span>
+                      <span className="font-bold text-foreground">{demoEvaluation.subScores?.clarity ?? '—'}%</span>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-border/80 bg-background/80 p-2.5 space-y-1">
+                    <div className="flex justify-between font-semibold text-muted-foreground">
+                      <span>Structure (20%)</span>
+                      <span className="font-bold text-foreground">{demoEvaluation.subScores?.structure ?? '—'}%</span>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5 space-y-1">
+                    <div className="flex justify-between font-semibold text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        Engagement <span className="text-[9px] font-bold px-1 rounded bg-amber-500/20 text-amber-600">PROXY</span>
+                      </span>
+                      <span className="font-bold text-amber-600">{demoEvaluation.subScores?.engagementProxy ?? '—'}%</span>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5 space-y-1">
+                    <div className="flex justify-between font-semibold text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        Professionalism <span className="text-[9px] font-bold px-1 rounded bg-amber-500/20 text-amber-600">PROXY</span>
+                      </span>
+                      <span className="font-bold text-amber-600">{demoEvaluation.subScores?.professionalismProxy ?? '—'}%</span>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-border/80 bg-background/80 p-2.5 space-y-1">
+                    <div className="flex justify-between font-semibold text-muted-foreground">
+                      <span>Pedagogy Execution</span>
+                      <span className="font-bold text-foreground">{demoEvaluation.completions?.pedagogyExecutionPct ?? '—'}%</span>
+                    </div>
+                  </div>
+                </div>
+
+                {demoEvaluation.flags && demoEvaluation.flags.length > 0 && (
+                  <div className="pt-2 border-t border-border/60 text-xs space-y-1">
+                    <span className="font-bold text-amber-600 flex items-center gap-1">
+                      <AlertCircle className="size-3.5" /> Review Observations:
+                    </span>
+                    {demoEvaluation.flags.map((fl: any, i: number) => (
+                      <p key={i} className="text-[11px] text-muted-foreground pl-4">
+                        • {fl.detail}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(demoEvaluation?.status === 'PROCESSING' || demoEvaluation?.status === 'PENDING') && (
+              <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-3.5 flex items-center gap-2.5 text-xs text-blue-500">
+                <LoaderCircle className="size-4 animate-spin shrink-0" />
+                <span>Demo class evaluation in progress — speech transcription and pedagogical metrics are analyzing.</span>
+              </div>
+            )}
 
             <div className="flex justify-end gap-2 pt-2">
               <button

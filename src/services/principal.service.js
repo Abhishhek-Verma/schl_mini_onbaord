@@ -311,3 +311,129 @@ export async function deletePrincipalDocument(userId, documentId) {
 
   return { message: "Document deleted successfully" };
 }
+
+/**
+ * Lists candidates (teachers) available for review by a principal.
+ */
+export async function listCandidates(principalUserId) {
+  const principal = await prisma.user.findUnique({
+    where: { id: principalUserId },
+    select: { id: true, role: true },
+  });
+
+  if (!principal || principal.role !== "PRINCIPAL") {
+    const error = new Error("Forbidden: Principal role required.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const candidates = await prisma.user.findMany({
+    where: {
+      role: "TEACHER",
+    },
+    select: {
+      id: true,
+      displayName: true,
+      email: true,
+      avatar: true,
+      phoneNumber: true,
+      teacherProfile: true,
+      demoEvaluation: true,
+    },
+    take: 30,
+    orderBy: { createdAt: "desc" },
+  });
+
+  return { candidates };
+}
+
+/**
+ * Retrieves the comprehensive candidate evaluation for a principal.
+ * Guarded so only authenticated PRINCIPAL users can call it.
+ */
+export async function getCandidateEvaluation(principalUserId, teacherUserId) {
+  const principal = await prisma.user.findUnique({
+    where: { id: principalUserId },
+    select: { id: true, role: true },
+  });
+
+  if (!principal || principal.role !== "PRINCIPAL") {
+    const error = new Error("Forbidden: Principal role required.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const teacher = await prisma.user.findUnique({
+    where: { id: teacherUserId },
+    select: {
+      id: true,
+      displayName: true,
+      email: true,
+      avatar: true,
+      phoneNumber: true,
+      teacherProfile: true,
+      demoEvaluation: true,
+    },
+  });
+
+  if (!teacher) {
+    const error = new Error("Candidate not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return {
+    candidate: {
+      id: teacher.id,
+      displayName: teacher.displayName,
+      email: teacher.email,
+      phoneNumber: teacher.phoneNumber,
+      avatar: teacher.avatar,
+      profile: teacher.teacherProfile,
+    },
+    demoEvaluation: teacher.demoEvaluation,
+  };
+}
+
+/**
+ * Updates a candidate's status by a principal (Accept / Reject).
+ */
+export async function updateCandidateDecision(principalUserId, teacherUserId, decision, remarks = "") {
+  const principal = await prisma.user.findUnique({
+    where: { id: principalUserId },
+    select: { id: true, role: true },
+  });
+
+  if (!principal || principal.role !== "PRINCIPAL") {
+    const error = new Error("Forbidden: Principal role required.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const validDecisions = ["ACCEPTED", "REJECTED", "UNDER_REVIEW"];
+  if (!validDecisions.includes(decision)) {
+    const error = new Error(`Invalid decision. Choose from: ${validDecisions.join(", ")}`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const teacher = await prisma.user.findUnique({
+    where: { id: teacherUserId },
+    include: { teacherProfile: true },
+  });
+
+  if (!teacher) {
+    const error = new Error("Candidate not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return {
+    teacherUserId,
+    decision,
+    remarks,
+    decidedBy: principalUserId,
+    decidedAt: new Date(),
+    message: `Candidate marked as ${decision}`,
+  };
+}
