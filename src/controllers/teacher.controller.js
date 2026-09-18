@@ -14,6 +14,11 @@ import {
   searchLocations,
   reverseGeocodeLocation,
 } from "../services/teacher.service.js";
+import {
+  startPedagogyAssessment,
+  submitPedagogyAssessment,
+  getPedagogyResult,
+} from "../services/pedagogy.service.js";
 
 export async function getTeacherOnboardingHandler(req, res, next) {
   try {
@@ -117,6 +122,30 @@ export async function reverseGeocodeHandler(req, res, next) {
     res.json({ location });
   } catch (error) {
     next(error);
+  }
+}
+
+export async function startPedagogyAssessmentHandler(req, res, next) {
+  try {
+    res.json(await startPedagogyAssessment(req.user.id));
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function submitPedagogyAssessmentHandler(req, res, next) {
+  try {
+    res.json(await submitPedagogyAssessment(req.user.id, req.body));
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function getPedagogyResultHandler(req, res, next) {
+  try {
+    res.json(await getPedagogyResult(req.user.id));
+  } catch (e) {
+    next(e);
   }
 }
 

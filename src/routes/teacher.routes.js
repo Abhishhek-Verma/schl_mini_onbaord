@@ -16,6 +16,9 @@ import {
   saveAvailabilityHandler,
   searchLocationHandler,
   reverseGeocodeHandler,
+  startPedagogyAssessmentHandler,
+  submitPedagogyAssessmentHandler,
+  getPedagogyResultHandler,
 } from "../controllers/teacher.controller.js";
 
 const router = Router();
@@ -26,6 +29,9 @@ router.put("/onboarding/basic-information", ...teacherOnly, saveBasicInformation
 router.put("/onboarding/profile-completion", ...teacherOnly, saveProfileCompletionHandler);
 router.put("/onboarding/documents-step", ...teacherOnly, saveDocumentsStepHandler);
 router.put("/onboarding/skill-assessment", ...teacherOnly, saveSkillAssessmentHandler);
+router.post("/onboarding/skill-assessment/start", ...teacherOnly, startPedagogyAssessmentHandler);
+router.post("/onboarding/skill-assessment/submit", ...teacherOnly, submitPedagogyAssessmentHandler);
+router.get("/onboarding/skill-assessment/result", ...teacherOnly, getPedagogyResultHandler);
 router.put("/onboarding/demo-class", ...teacherOnly, saveDemoClassHandler);
 router.put("/onboarding/passport-score", ...teacherOnly, saveTeacherPassportHandler);
 router.put("/onboarding/availability", ...teacherOnly, saveAvailabilityHandler);

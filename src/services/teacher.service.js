@@ -12,7 +12,7 @@ const BOARD_EXPERIENCE = ["CBSE", "ICSE", "STATE_BOARD", "IB", "OTHER"];
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 const MAX_PDF_BYTES = 5 * 1024 * 1024;
 
-function validationError(message) {
+export function validationError(message) {
   const error = new Error(message);
   error.statusCode = 400;
   return error;
@@ -141,7 +141,7 @@ function tryParseJson(val) {
   try { return JSON.parse(trimmed); } catch { return val; }
 }
 
-function serializeProfile(profile) {
+export function serializeProfile(profile) {
   if (!profile) return null;
   return {
     ...profile,

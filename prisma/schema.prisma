@@ -30,6 +30,7 @@ model User {
   teacherDocuments      TeacherDocument[]
   principalProfile      PrincipalProfile?
   principalDocuments    PrincipalDocument[]
+  pedagogyAttempts      PedagogyAttempt[]
 
   @@index([username])
   @@index([email])
@@ -209,5 +210,70 @@ model PrincipalProfile {
   @@index([basicInformationCompleted])
   @@index([profileCompletionCompleted])
   @@index([onboardingCompleted])
+}
+
+enum PedagogySection {
+  CLASSROOM_MANAGEMENT
+  TEACHING_METHODOLOGY
+  STUDENT_PSYCHOLOGY
+  ASSESSMENT_FEEDBACK
+  DIFFERENTIATED_INCLUSIVE
+  COMPLEX_SCENARIO
+  FOUNDATIONAL_KNOWLEDGE
+}
+
+enum PedagogyQuestionType {
+  MCQ
+  MSQ
+  SJT
+  CASE
+}
+
+enum PedagogyAttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+}
+
+model PedagogyQuestion {
+  id             String                @id @default(uuid())
+  code           String                @unique
+  section        PedagogySection
+  type           PedagogyQuestionType
+  prompt         String
+  options        Json
+  expertRanking  Json?
+  maxDistance    Int?
+  caseGroup      String?
+  casePart       Int?
+  coherenceBonus Float?
+  isActive       Boolean               @default(true)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@index([section])
+  @@index([type])
+  @@index([caseGroup])
+}
+
+model PedagogyAttempt {
+  id            String                @id @default(uuid())
+  userId        String
+  status        PedagogyAttemptStatus @default(IN_PROGRESS)
+  questionOrder Json
+  optionOrders  Json?
+  responses     Json?
+  sectionScores Json?
+  overallScore  Float?
+  band          String?
+  flags         Json?
+  sectionMinMet Boolean?
+  durationSec   Int?
+  perQuestionMs Json?
+  startedAt     DateTime              @default(now())
+  submittedAt   DateTime?
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
 }
 

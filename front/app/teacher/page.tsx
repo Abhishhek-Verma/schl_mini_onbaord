@@ -35,6 +35,7 @@ import {
   ShieldCheck,
   Sliders,
   Sparkles,
+  RotateCcw,
   Trash2,
   UploadCloud,
   UserRound,
@@ -43,6 +44,8 @@ import {
   Zap,
 } from 'lucide-react';
 import { fetchApi } from '@/lib/api';
+import { AssessmentRunner } from '@/components/skill-assessment/AssessmentRunner';
+import { AssessmentResult } from '@/components/skill-assessment/AssessmentResult';
 import { useAuthStore } from '@/store/useAuthStore';
 import { routeForRole } from '@/lib/auth';
 import {
@@ -252,6 +255,44 @@ function TeacherPageContent() {
 
   // Demo class state (Post-onboarding)
   const [demoVideoUrl, setDemoVideoUrl] = useState('');
+
+  // Pedagogy skill assessment state (Post-onboarding)
+  const [pedagogyResult, setPedagogyResult] = useState<any>(null);
+  const [loadingPedagogyResult, setLoadingPedagogyResult] = useState(false);
+  const [isRetakingPedagogy, setIsRetakingPedagogy] = useState(false);
+
+  useEffect(() => {
+    if (
+      (section === 'skills' || editing === 'skills') &&
+      profile?.skillAssessmentCompleted &&
+      !pedagogyResult &&
+      !isRetakingPedagogy &&
+      accessToken
+    ) {
+      setLoadingPedagogyResult(true);
+      fetchApi<{ result: any }>(
+        '/teacher/onboarding/skill-assessment/result',
+        {},
+        accessToken
+      )
+        .then((res) => {
+          if (res && res.result) {
+            setPedagogyResult(res.result);
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          setLoadingPedagogyResult(false);
+        });
+    }
+  }, [
+    section,
+    editing,
+    profile?.skillAssessmentCompleted,
+    pedagogyResult,
+    isRetakingPedagogy,
+    accessToken,
+  ]);
 
   useEffect(() => {
     if (profile?.demoVideoUrl && !demoVideoUrl) {
@@ -962,12 +1003,17 @@ function TeacherPageContent() {
 
   // Dedicated View for Skill Assessment (post-onboarding, beside Demo Class)
   if (section === 'skills' || editing === 'skills') {
+    const isSkillDone = Boolean(profile?.skillAssessmentCompleted);
+
     return (
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
         <div className="mb-4">
           <button
             type="button"
-            onClick={() => router.push('/teacher')}
+            onClick={() => {
+              setIsRetakingPedagogy(false);
+              router.push('/teacher');
+            }}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           >
             <ArrowLeft className="size-3.5" />
@@ -988,13 +1034,55 @@ function TeacherPageContent() {
           </div>
         )}
 
-        <SkillsStepForm
-          saving={saving}
-          isCompleted={Boolean(profile?.skillAssessmentCompleted)}
-          onSubmit={() => saveSkillsStep(true)}
-          onSaveProgress={() => saveSkillsStep(false)}
-          onBack={() => router.push('/teacher')}
-        />
+        {isSkillDone && !isRetakingPedagogy ? (
+          loadingPedagogyResult ? (
+            <div className="flex flex-col items-center justify-center min-h-[300px] p-8 space-y-3">
+              <LoaderCircle className="size-8 animate-spin text-primary" />
+              <p className="text-xs text-muted-foreground">Loading assessment results...</p>
+            </div>
+          ) : pedagogyResult ? (
+            <AssessmentResult
+              result={pedagogyResult}
+              onBack={() => router.push('/teacher')}
+              onRetake={() => {
+                setPedagogyResult(null);
+                setIsRetakingPedagogy(true);
+              }}
+            />
+          ) : (
+            <div className="bg-card border border-border rounded-xl p-8 text-center space-y-4 max-w-lg mx-auto">
+              <div className="size-12 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto">
+                <CheckCircle2 className="size-6" />
+              </div>
+              <h3 className="font-heading font-bold text-lg">Assessment Completed</h3>
+              <p className="text-xs text-muted-foreground">
+                Your skill assessment has been recorded on your profile. You may take it again at any time.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsRetakingPedagogy(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
+              >
+                <RotateCcw className="size-3.5" />
+                <span>Retake Assessment</span>
+              </button>
+            </div>
+          )
+        ) : (
+          <AssessmentRunner
+            onComplete={(res) => {
+              setPedagogyResult(res);
+              setIsRetakingPedagogy(false);
+              if (profile) {
+                setProfile({ ...profile, skillAssessmentCompleted: true });
+              }
+            }}
+            onCancel={() => {
+              setIsRetakingPedagogy(false);
+              router.push('/teacher');
+            }}
+          />
+        )}
       </main>
     );
   }
@@ -4655,27 +4743,12 @@ function TeacherDashboard({
                 <Sparkles className="size-7" />
               </div>
               <h4 className="font-heading font-bold text-base">
-                Skill & Competency Verification
+                Pedagogy Skill Assessment
               </h4>
               <p className="text-xs text-muted-foreground mt-1.5">
-                Your skill competencies are automatically synchronized based on your
-                subjects and qualifications.
+                Complete the scenario-based competency assessment to verify your teaching methodology,
+                classroom management, and student psychology skills.
               </p>
-
-              <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-left text-xs">
-                <div className="rounded-lg bg-muted/60 border border-border/60 p-2.5">
-                  <div className="text-[11px] text-muted-foreground font-medium">Pedagogy</div>
-                  <div className="font-semibold text-foreground mt-0.5">Proficient</div>
-                </div>
-                <div className="rounded-lg bg-muted/60 border border-border/60 p-2.5">
-                  <div className="text-[11px] text-muted-foreground font-medium">Classroom</div>
-                  <div className="font-semibold text-foreground mt-0.5">Verified</div>
-                </div>
-                <div className="rounded-lg bg-muted/60 border border-border/60 p-2.5">
-                  <div className="text-[11px] text-muted-foreground font-medium">Subject Mastery</div>
-                  <div className="font-semibold text-foreground mt-0.5">Certified</div>
-                </div>
-              </div>
 
               <div className={`mt-4 inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1 text-xs font-semibold ${
                 isSkillCompleted
@@ -4685,8 +4758,8 @@ function TeacherDashboard({
                 {isSkillCompleted ? <CheckCircle2 className="size-3.5" /> : <Sparkles className="size-3.5" />}
                 <span>
                   {isSkillCompleted
-                    ? 'Status: Verified & Certified on Profile'
-                    : 'Status: Ready to Confirm & Complete'}
+                    ? 'Status: Assessment Completed & Verified'
+                    : 'Status: Ready to Take Assessment'}
                 </span>
               </div>
             </div>
@@ -4699,26 +4772,14 @@ function TeacherDashboard({
               >
                 Close
               </button>
-              {!isSkillCompleted ? (
-                <button
-                  type="button"
-                  onClick={onSaveSkills}
-                  disabled={savingSkills}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
-                >
-                  <Zap className="size-3.5" />
-                  <span>{savingSkills ? 'Saving...' : 'Complete Assessment'}</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => onNavigate('/teacher?section=skills')}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-secondary border border-border px-4 py-2 text-xs font-semibold text-secondary-foreground hover:bg-secondary/80 transition-colors cursor-pointer"
-                >
-                  <span>View Full Assessment</span>
-                  <ArrowRight className="size-3.5" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => onNavigate('/teacher?section=skills')}
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm cursor-pointer"
+              >
+                <span>{isSkillCompleted ? 'View Results & Breakdown' : 'Start Assessment'}</span>
+                <ArrowRight className="size-3.5" />
+              </button>
             </div>
           </div>
         )}
