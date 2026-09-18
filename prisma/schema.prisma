@@ -31,6 +31,7 @@ model User {
   principalProfile      PrincipalProfile?
   principalDocuments    PrincipalDocument[]
   pedagogyAttempts      PedagogyAttempt[]
+  subjectAttempts       SubjectAttempt[]
 
   @@index([username])
   @@index([email])
@@ -136,9 +137,15 @@ model TeacherProfile {
   workingHoursStart          String?
   workingHoursEnd            String?
   availableFrom              DateTime?
+  openToSubjects             Json?
+  openToClasses              Json?
+  openToBoard                String?
+  demoAssignedTopics         Json?
   basicInformationCompleted  Boolean                      @default(false)
   profileCompletionCompleted Boolean                      @default(false)
   documentsCompleted         Boolean                      @default(false)
+  pedagogyCompleted          Boolean                      @default(false)
+  subjectAssessmentCompleted Boolean                      @default(false)
   skillAssessmentCompleted   Boolean                      @default(false)
   demoClassCompleted         Boolean                      @default(false)
   passportScoreCompleted     Boolean                      @default(false)
@@ -259,6 +266,59 @@ model PedagogyAttempt {
   id            String                @id @default(uuid())
   userId        String
   status        PedagogyAttemptStatus @default(IN_PROGRESS)
+  questionOrder Json
+  optionOrders  Json?
+  responses     Json?
+  sectionScores Json?
+  overallScore  Float?
+  band          String?
+  flags         Json?
+  sectionMinMet Boolean?
+  durationSec   Int?
+  perQuestionMs Json?
+  startedAt     DateTime              @default(now())
+  submittedAt   DateTime?
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+enum SubjectDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum SubjectAttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+}
+
+model SubjectQuestion {
+  id         String            @id @default(uuid())
+  code       String            @unique
+  subject    String
+  classLevel Int
+  board      String            @default("NEUTRAL")
+  topic      String
+  difficulty SubjectDifficulty @default(MEDIUM)
+  type       String
+  prompt     String
+  options    Json
+  isActive   Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@index([subject, classLevel, board, isActive])
+  @@index([subject, isActive])
+}
+
+model SubjectAttempt {
+  id            String                @id @default(uuid())
+  userId        String
+  status        SubjectAttemptStatus  @default(IN_PROGRESS)
+  blueprint     Json
   questionOrder Json
   optionOrders  Json?
   responses     Json?

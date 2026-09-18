@@ -53,16 +53,27 @@ async function createSession(user, req = null) {
   let onboardingCompleted = false;
   let demoClassCompleted = false;
   let demoVideoUrl = null;
+  let pedagogyCompleted = false;
+  let subjectAssessmentCompleted = false;
   let skillAssessmentCompleted = false;
   if (user.role === "TEACHER") {
     const tp = await prisma.teacherProfile.findUnique({
       where: { userId: user.id },
-      select: { onboardingCompleted: true, demoClassCompleted: true, demoVideoUrl: true, skillAssessmentCompleted: true },
+      select: {
+        onboardingCompleted: true,
+        demoClassCompleted: true,
+        demoVideoUrl: true,
+        pedagogyCompleted: true,
+        subjectAssessmentCompleted: true,
+        skillAssessmentCompleted: true,
+      },
     });
     onboardingCompleted = tp?.onboardingCompleted || false;
     const hasDemoUrl = Boolean(tp?.demoVideoUrl && tp.demoVideoUrl.trim().length > 0);
     demoClassCompleted = hasDemoUrl || Boolean(tp?.demoClassCompleted);
     demoVideoUrl = tp?.demoVideoUrl || null;
+    pedagogyCompleted = Boolean(tp?.pedagogyCompleted);
+    subjectAssessmentCompleted = Boolean(tp?.subjectAssessmentCompleted);
     skillAssessmentCompleted = Boolean(tp?.skillAssessmentCompleted);
   } else if (user.role === "PRINCIPAL") {
     const pp = await prisma.principalProfile.findUnique({
@@ -80,6 +91,8 @@ async function createSession(user, req = null) {
       onboardingCompleted,
       demoClassCompleted,
       demoVideoUrl,
+      pedagogyCompleted,
+      subjectAssessmentCompleted,
       skillAssessmentCompleted,
     },
     accessToken,
@@ -613,11 +626,16 @@ export async function getUserProfile(userId) {
           basicInformationCompleted: true,
           profileCompletionCompleted: true,
           documentsCompleted: true,
+          pedagogyCompleted: true,
+          subjectAssessmentCompleted: true,
           skillAssessmentCompleted: true,
           demoClassCompleted: true,
           demoVideoUrl: true,
           passportScoreCompleted: true,
           availabilityCompleted: true,
+          openToSubjects: true,
+          openToClasses: true,
+          openToBoard: true,
         },
       },
       principalProfile: {
@@ -654,6 +672,8 @@ export async function getUserProfile(userId) {
     onboardingCompleted,
     demoClassCompleted,
     demoVideoUrl: teacherProfile?.demoVideoUrl || null,
+    pedagogyCompleted: Boolean(teacherProfile?.pedagogyCompleted),
+    subjectAssessmentCompleted: Boolean(teacherProfile?.subjectAssessmentCompleted),
     skillAssessmentCompleted: Boolean(teacherProfile?.skillAssessmentCompleted),
     teacherProfile: teacherProfile || null,
     principalProfile: principalProfile || null,

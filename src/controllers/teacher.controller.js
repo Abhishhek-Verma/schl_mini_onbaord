@@ -18,6 +18,12 @@ import {
   submitPedagogyAssessment,
   getPedagogyResult,
 } from "../services/pedagogy.service.js";
+import {
+  startSubjectAssessment,
+  submitSubjectAssessment,
+  getSubjectResult,
+  getSubjectAssignedTopics,
+} from "../services/subject.service.js";
 
 export async function getTeacherOnboardingHandler(req, res, next) {
   try {
@@ -136,6 +142,39 @@ export async function getPedagogyResultHandler(req, res, next) {
   try {
     const result = await getPedagogyResult(req.user.id);
     res.json({ result, ...(result || {}) });
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function startSubjectAssessmentHandler(req, res, next) {
+  try {
+    res.json(await startSubjectAssessment(req.user.id));
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function submitSubjectAssessmentHandler(req, res, next) {
+  try {
+    res.json(await submitSubjectAssessment(req.user.id, req.body));
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function getSubjectResultHandler(req, res, next) {
+  try {
+    const result = await getSubjectResult(req.user.id);
+    res.json({ result, ...(result || {}) });
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function getAssignedTopicsHandler(req, res, next) {
+  try {
+    res.json(await getSubjectAssignedTopics(req.user.id));
   } catch (e) {
     next(e);
   }

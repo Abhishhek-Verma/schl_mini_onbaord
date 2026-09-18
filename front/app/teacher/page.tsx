@@ -45,6 +45,8 @@ import {
 import { fetchApi } from '@/lib/api';
 import { AssessmentRunner } from '@/components/skill-assessment/AssessmentRunner';
 import { AssessmentResult } from '@/components/skill-assessment/AssessmentResult';
+import { SubjectAssessmentRunner } from '@/components/skill-assessment/SubjectAssessmentRunner';
+import { SubjectAssessmentResult } from '@/components/skill-assessment/SubjectAssessmentResult';
 import { useAuthStore } from '@/store/useAuthStore';
 import { routeForRole } from '@/lib/auth';
 import {
@@ -134,6 +136,12 @@ type TeacherProfile = Record<string, any> & {
   profileCompletionCompleted?: boolean;
   documentsCompleted?: boolean;
   skillAssessmentCompleted?: boolean;
+  pedagogyCompleted?: boolean;
+  subjectAssessmentCompleted?: boolean;
+  openToSubjects?: string[];
+  openToClasses?: number[];
+  openToBoard?: string;
+  demoAssignedTopics?: any[];
   demoClassCompleted?: boolean;
   demoVideoUrl?: string;
   availabilityCompleted?: boolean;
@@ -256,44 +264,100 @@ function TeacherPageContent() {
   // Demo class state (Post-onboarding)
   const [demoVideoUrl, setDemoVideoUrl] = useState('');
 
-  // Pedagogy skill assessment state (Post-onboarding)
+  // Skill Assessment state (Hub, Pedagogy, and Subject Knowledge)
+  const [skillView, setSkillView] = useState<'hub' | 'pedagogy' | 'subject'>('hub');
+
+  // Pedagogy skill assessment state
   const [pedagogyResult, setPedagogyResult] = useState<any>(null);
   const [loadingPedagogyResult, setLoadingPedagogyResult] = useState(false);
-  const [testStarted, setTestStarted] = useState(false);
-  const [testJustSubmitted, setTestJustSubmitted] = useState(false);
-  const [showResultFromConfirmation, setShowResultFromConfirmation] = useState(false);
+  const [pedagogyStarted, setPedagogyStarted] = useState(false);
+  const [pedagogyJustSubmitted, setPedagogyJustSubmitted] = useState(false);
+  const [showPedagogyResultFromConfirmation, setShowPedagogyResultFromConfirmation] = useState(false);
+
+  // Subject knowledge assessment state
+  const [subjectResult, setSubjectResult] = useState<any>(null);
+  const [loadingSubjectResult, setLoadingSubjectResult] = useState(false);
+  const [subjectTestStarted, setSubjectTestStarted] = useState(false);
+  const [subjectTestJustSubmitted, setSubjectTestJustSubmitted] = useState(false);
+  const [showSubjectResultFromConfirmation, setShowSubjectResultFromConfirmation] = useState(false);
+
+  // Demo class assigned topics
+  const [assignedTopics, setAssignedTopics] = useState<any[]>([]);
 
   useEffect(() => {
     if (
       (section === 'skills' || editing === 'skills') &&
-      profile?.skillAssessmentCompleted &&
-      !pedagogyResult &&
       accessToken
     ) {
-      setLoadingPedagogyResult(true);
-      fetchApi<any>(
-        '/teacher/onboarding/skill-assessment/result',
-        {},
-        accessToken
-      )
-        .then((res) => {
-          const data = res?.result || res;
-          if (data && (data.overallScore !== undefined || data.band)) {
-            setPedagogyResult(data);
-          }
-        })
-        .catch(() => {})
-        .finally(() => {
-          setLoadingPedagogyResult(false);
-        });
+      const isPedagogyCompleted = Boolean(profile?.pedagogyCompleted || profile?.skillAssessmentCompleted);
+      if (isPedagogyCompleted && !pedagogyResult) {
+        setLoadingPedagogyResult(true);
+        fetchApi<any>(
+          '/teacher/onboarding/skill-assessment/result',
+          {},
+          accessToken
+        )
+          .then((res) => {
+            const data = res?.result || res;
+            if (data && (data.overallScore !== undefined || data.band)) {
+              setPedagogyResult(data);
+            }
+          })
+          .catch(() => {})
+          .finally(() => {
+            setLoadingPedagogyResult(false);
+          });
+      }
+
+      if (profile?.subjectAssessmentCompleted && !subjectResult) {
+        setLoadingSubjectResult(true);
+        fetchApi<any>(
+          '/teacher/onboarding/subject-assessment/result',
+          {},
+          accessToken
+        )
+          .then((res) => {
+            const data = res?.result || res;
+            if (data && (data.overallScore !== undefined || data.band)) {
+              setSubjectResult(data);
+            }
+          })
+          .catch(() => {})
+          .finally(() => {
+            setLoadingSubjectResult(false);
+          });
+      }
     }
   }, [
     section,
     editing,
     profile?.skillAssessmentCompleted,
+    profile?.pedagogyCompleted,
+    profile?.subjectAssessmentCompleted,
     pedagogyResult,
+    subjectResult,
     accessToken,
   ]);
+
+  useEffect(() => {
+    if (accessToken) {
+      if (profile?.demoAssignedTopics && Array.isArray(profile.demoAssignedTopics) && profile.demoAssignedTopics.length > 0) {
+        setAssignedTopics(profile.demoAssignedTopics);
+      } else {
+        fetchApi<any>(
+          '/teacher/onboarding/demo-class/assigned-topics',
+          {},
+          accessToken
+        )
+          .then((res) => {
+            if (res?.topics && Array.isArray(res.topics)) {
+              setAssignedTopics(res.topics);
+            }
+          })
+          .catch(() => {});
+      }
+    }
+  }, [accessToken, profile?.demoAssignedTopics, profile?.openToSubjects]);
 
   useEffect(() => {
     if (profile?.demoVideoUrl && !demoVideoUrl) {
@@ -315,6 +379,9 @@ function TeacherPageContent() {
     availableFrom: 'Immediately',
     currentLocation: null as LocationData | null,
     preferredLocations: [] as PreferredLocationData[],
+    openToSubjects: ['MATH', 'SCIENCE'] as string[],
+    openToClasses: [6, 7, 8, 9, 10] as number[],
+    openToBoard: 'CBSE',
   });
 
   const loadDocuments = async () => {
@@ -466,6 +533,13 @@ function TeacherPageContent() {
                   formattedAddress: loc,
                 }))
               : []),
+          openToSubjects: Array.isArray(nextProfile.openToSubjects) && nextProfile.openToSubjects.length > 0
+            ? nextProfile.openToSubjects
+            : ['MATH', 'SCIENCE'],
+          openToClasses: Array.isArray(nextProfile.openToClasses) && nextProfile.openToClasses.length > 0
+            ? nextProfile.openToClasses
+            : [6, 7, 8, 9, 10],
+          openToBoard: nextProfile.openToBoard || 'CBSE',
         });
 
         // Automatic step resumption for incomplete onboarding or edit mode
@@ -961,26 +1035,58 @@ function TeacherPageContent() {
   }
 
   // Dedicated View for Skill Assessment (post-onboarding, beside Demo Class)
-  // Directly renders the Landing Page (Attempt Test) or Result Page (View Result)
+  // Hub contains:
+  // 1. Pedagogy Assessment card (30 items, 35 mins)
+  // 2. Subject Knowledge Assessment card (Classes 6-10, tailored to open-to-teach preferences)
   if (section === 'skills' || editing === 'skills') {
-    const isSkillDone = Boolean(profile?.skillAssessmentCompleted);
+    const isPedagogyDone = Boolean(profile?.pedagogyCompleted || profile?.skillAssessmentCompleted);
+    const isSubjectDone = Boolean(profile?.subjectAssessmentCompleted);
+    const isBothDone = Boolean(profile?.skillAssessmentCompleted || (isPedagogyDone && isSubjectDone));
+    const completedCount = (isPedagogyDone ? 1 : 0) + (isSubjectDone ? 1 : 0);
+
+    const openSubjects = Array.isArray(profile?.openToSubjects) && profile.openToSubjects.length > 0
+      ? profile.openToSubjects
+      : (Array.isArray(availability.openToSubjects) && availability.openToSubjects.length > 0 ? availability.openToSubjects : []);
+    const openClasses = Array.isArray(profile?.openToClasses) && profile.openToClasses.length > 0
+      ? profile.openToClasses
+      : (Array.isArray(availability.openToClasses) && availability.openToClasses.length > 0 ? availability.openToClasses : []);
+    const hasSubjectPrefs = openSubjects.length > 0 && openClasses.length > 0;
 
     return (
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-        <div className="mb-4">
+        {/* Top Navigation */}
+        <div className="mb-6 flex items-center justify-between">
           <button
             type="button"
             onClick={() => {
-              setTestStarted(false);
-              setTestJustSubmitted(false);
-              setShowResultFromConfirmation(false);
-              router.push('/teacher');
+              if (skillView !== 'hub') {
+                setSkillView('hub');
+                setPedagogyStarted(false);
+                setSubjectTestStarted(false);
+              } else {
+                router.push('/teacher');
+              }
             }}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           >
             <ArrowLeft className="size-3.5" />
-            <span>Back to Dashboard</span>
+            <span>{skillView !== 'hub' ? 'Back to Skill Assessment Hub' : 'Back to Dashboard'}</span>
           </button>
+
+          {skillView !== 'hub' && (
+            <button
+              type="button"
+              onClick={() => {
+                setSkillView('hub');
+                setPedagogyStarted(false);
+                setSubjectTestStarted(false);
+                router.push('/teacher');
+              }}
+              className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            >
+              Dashboard
+            </button>
+          )}
         </div>
 
         {error && (
@@ -996,174 +1102,623 @@ function TeacherPageContent() {
           </div>
         )}
 
-        {/* Case 1: Result Page (Returning teacher or teacher who clicked 'View Score' from confirmation) */}
-        {(isSkillDone && !testJustSubmitted) || showResultFromConfirmation ? (
-          loadingPedagogyResult ? (
-            <div className="flex flex-col items-center justify-center min-h-[300px] p-8 space-y-3">
-              <LoaderCircle className="size-8 animate-spin text-primary" />
-              <p className="text-xs text-muted-foreground">Loading assessment results...</p>
+        {/* ======================================================== */}
+        {/* SUB-VIEW 1: PEDAGOGY SUB-TEST                           */}
+        {/* ======================================================== */}
+        {skillView === 'pedagogy' ? (
+          (isPedagogyDone && !pedagogyJustSubmitted) || showPedagogyResultFromConfirmation ? (
+            loadingPedagogyResult ? (
+              <div className="flex flex-col items-center justify-center min-h-[300px] p-8 space-y-3">
+                <LoaderCircle className="size-8 animate-spin text-primary" />
+                <p className="text-xs text-muted-foreground">Loading pedagogy assessment results...</p>
+              </div>
+            ) : pedagogyResult ? (
+              <AssessmentResult
+                result={pedagogyResult}
+                onBack={() => {
+                  setPedagogyStarted(false);
+                  setPedagogyJustSubmitted(false);
+                  setShowPedagogyResultFromConfirmation(false);
+                  setSkillView('hub');
+                }}
+              />
+            ) : (
+              <div className="bg-card border border-border rounded-xl p-8 text-center space-y-4 max-w-lg mx-auto">
+                <div className="size-12 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="size-6" />
+                </div>
+                <h3 className="font-heading font-bold text-lg">Pedagogy Assessment Completed</h3>
+                <p className="text-xs text-muted-foreground">
+                  Your pedagogy assessment has been completed and verified on your profile.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSkillView('hub');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
+                >
+                  <ArrowLeft className="size-3.5" />
+                  <span>Back to Skill Hub</span>
+                </button>
+              </div>
+            )
+          ) : pedagogyJustSubmitted && !showPedagogyResultFromConfirmation ? (
+            /* Submission Confirmation */
+            <div className="bg-card border border-border rounded-2xl p-8 sm:p-12 text-center max-w-md mx-auto shadow-lg space-y-6 animate-in fade-in zoom-in-95 duration-200">
+              <div className="size-16 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto ring-8 ring-emerald-500/5">
+                <CheckCircle2 className="size-8" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="font-heading text-2xl sm:text-3xl font-extrabold text-foreground">
+                  Thank You!
+                </h2>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Your pedagogy assessment has been successfully submitted and verified.
+                </p>
+              </div>
+              <div className="pt-2 flex flex-col gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowPedagogyResultFromConfirmation(true)}
+                  className="inline-flex items-center justify-center gap-2 w-full px-5 py-3 rounded-xl bg-primary text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-all shadow-md cursor-pointer"
+                >
+                  <Sparkles className="size-4" />
+                  <span>View Score</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPedagogyStarted(false);
+                    setPedagogyJustSubmitted(false);
+                    setShowPedagogyResultFromConfirmation(false);
+                    setSkillView('hub');
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors py-1 cursor-pointer"
+                >
+                  Back to Skill Hub
+                </button>
+              </div>
             </div>
-          ) : pedagogyResult ? (
-            <AssessmentResult
-              result={pedagogyResult}
-              onBack={() => {
-                setTestStarted(false);
-                setTestJustSubmitted(false);
-                setShowResultFromConfirmation(false);
-                router.push('/teacher');
+          ) : pedagogyStarted ? (
+            /* Runner */
+            <AssessmentRunner
+              onComplete={(res) => {
+                setPedagogyResult(res);
+                setPedagogyJustSubmitted(true);
+                if (profile) {
+                  setProfile({
+                    ...profile,
+                    pedagogyCompleted: true,
+                    skillAssessmentCompleted: Boolean(profile.subjectAssessmentCompleted),
+                  });
+                }
+                if (user) {
+                  updateUser({
+                    pedagogyCompleted: true,
+                    skillAssessmentCompleted: Boolean(profile?.subjectAssessmentCompleted),
+                  });
+                }
+              }}
+              onCancel={() => {
+                setPedagogyStarted(false);
+                setSkillView('hub');
               }}
             />
           ) : (
-            <div className="bg-card border border-border rounded-xl p-8 text-center space-y-4 max-w-lg mx-auto">
-              <div className="size-12 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto">
-                <CheckCircle2 className="size-6" />
+            /* Landing Page for Pedagogy */
+            <div className="bg-card border border-border rounded-2xl p-6 sm:p-10 shadow-lg max-w-2xl mx-auto space-y-8 animate-in fade-in duration-200">
+              <div className="text-center space-y-3">
+                <div className="size-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto">
+                  <Zap className="size-7" />
+                </div>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                  Pedagogy Evaluation
+                </span>
+                <h1 className="font-heading text-2xl sm:text-3xl font-bold text-foreground">
+                  Pedagogy Skill Assessment
+                </h1>
+                <p className="text-sm text-muted-foreground max-w-lg mx-auto leading-relaxed">
+                  Evaluate and certify your pedagogical capabilities through scenario-based situations across classroom management, teaching methodology, student motivation, and inclusive teaching.
+                </p>
               </div>
-              <h3 className="font-heading font-bold text-lg">Assessment Completed</h3>
-              <p className="text-xs text-muted-foreground">
-                Your pedagogy assessment has been completed and verified on your profile.
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setTestStarted(false);
-                  setTestJustSubmitted(false);
-                  setShowResultFromConfirmation(false);
-                  router.push('/teacher');
-                }}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
-              >
-                <ArrowLeft className="size-3.5" />
-                <span>Back to Dashboard</span>
-              </button>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3.5 rounded-xl bg-muted/40 border border-border/80 text-center space-y-1">
+                  <div className="text-[11px] text-muted-foreground uppercase font-semibold">Questions</div>
+                  <div className="text-xl font-extrabold text-foreground">30</div>
+                  <div className="text-[11px] text-muted-foreground">Scenario Items</div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-muted/40 border border-border/80 text-center space-y-1">
+                  <div className="text-[11px] text-muted-foreground uppercase font-semibold">Duration</div>
+                  <div className="text-xl font-extrabold text-foreground">35 Mins</div>
+                  <div className="text-[11px] text-muted-foreground">Timed Session</div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-muted/40 border border-border/80 text-center space-y-1">
+                  <div className="text-[11px] text-muted-foreground uppercase font-semibold">Domains</div>
+                  <div className="text-xl font-extrabold text-foreground">7 Pillars</div>
+                  <div className="text-[11px] text-muted-foreground">Competencies</div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-muted/40 border border-border/80 text-center space-y-1">
+                  <div className="text-[11px] text-muted-foreground uppercase font-semibold">Format</div>
+                  <div className="text-xl font-extrabold text-foreground">Objective</div>
+                  <div className="text-[11px] text-muted-foreground">MCQ, MSQ, SJT</div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border/70 bg-muted/25 p-4 sm:p-5 space-y-2.5 text-xs text-muted-foreground">
+                <h4 className="font-semibold text-foreground text-sm flex items-center gap-2">
+                  <BookOpen className="size-4 text-primary" />
+                  Instructions Before You Begin
+                </h4>
+                <ul className="space-y-1.5 list-disc list-inside">
+                  <li>Ensure you have an uninterrupted 35-minute block with a stable internet connection.</li>
+                  <li>Each question tests real-world judgment across modern classroom situations.</li>
+                  <li>Once you submit the test, your responses will be evaluated and verified.</li>
+                </ul>
+              </div>
+
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPedagogyStarted(true)}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-primary text-sm font-bold text-primary-foreground hover:bg-primary/90 transition-all shadow-md cursor-pointer"
+                >
+                  <span>Attempt Test</span>
+                  <ArrowRight className="size-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSkillView('hub')}
+                  className="w-full sm:w-auto inline-flex items-center justify-center px-5 py-3.5 rounded-xl border border-border text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                >
+                  Back to Hub
+                </button>
+              </div>
             </div>
           )
-        ) : testJustSubmitted && !showResultFromConfirmation ? (
-          /* Case 2: Submission Confirmation Page ("Thank You" -> "View Score") */
-          <div className="bg-card border border-border rounded-2xl p-8 sm:p-12 text-center max-w-md mx-auto shadow-lg space-y-6 animate-in fade-in zoom-in-95 duration-200">
-            <div className="size-16 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto ring-8 ring-emerald-500/5">
-              <CheckCircle2 className="size-8" />
-            </div>
-            <div className="space-y-2">
-              <h2 className="font-heading text-2xl sm:text-3xl font-extrabold text-foreground">
-                Thank You!
-              </h2>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Your test has been successfully submitted and verified.
-              </p>
-            </div>
-            <div className="pt-2 flex flex-col gap-2.5">
-              <button
-                type="button"
-                onClick={() => setShowResultFromConfirmation(true)}
-                className="inline-flex items-center justify-center gap-2 w-full px-5 py-3 rounded-xl bg-primary text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-all shadow-md cursor-pointer"
-              >
-                <Sparkles className="size-4" />
-                <span>View Score</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setTestStarted(false);
-                  setTestJustSubmitted(false);
-                  setShowResultFromConfirmation(false);
-                  router.push('/teacher');
+        ) : skillView === 'subject' ? (
+          /* ======================================================== */
+          /* SUB-VIEW 2: SUBJECT KNOWLEDGE SUB-TEST                  */
+          /* ======================================================== */
+          (isSubjectDone && !subjectTestJustSubmitted) || showSubjectResultFromConfirmation ? (
+            loadingSubjectResult ? (
+              <div className="flex flex-col items-center justify-center min-h-[300px] p-8 space-y-3">
+                <LoaderCircle className="size-8 animate-spin text-primary" />
+                <p className="text-xs text-muted-foreground">Loading subject assessment results...</p>
+              </div>
+            ) : subjectResult ? (
+              <SubjectAssessmentResult
+                result={subjectResult}
+                onBack={() => {
+                  setSubjectTestStarted(false);
+                  setSubjectTestJustSubmitted(false);
+                  setShowSubjectResultFromConfirmation(false);
+                  setSkillView('hub');
                 }}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors py-1 cursor-pointer"
-              >
-                Back to Dashboard
-              </button>
+              />
+            ) : (
+              <div className="bg-card border border-border rounded-xl p-8 text-center space-y-4 max-w-lg mx-auto">
+                <div className="size-12 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="size-6" />
+                </div>
+                <h3 className="font-heading font-bold text-lg">Subject Assessment Completed</h3>
+                <p className="text-xs text-muted-foreground">
+                  Your subject knowledge assessment has been completed and verified on your profile.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSkillView('hub');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
+                >
+                  <ArrowLeft className="size-3.5" />
+                  <span>Back to Skill Hub</span>
+                </button>
+              </div>
+            )
+          ) : subjectTestJustSubmitted && !showSubjectResultFromConfirmation ? (
+            /* Submission Confirmation */
+            <div className="bg-card border border-border rounded-2xl p-8 sm:p-12 text-center max-w-md mx-auto shadow-lg space-y-6 animate-in fade-in zoom-in-95 duration-200">
+              <div className="size-16 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto ring-8 ring-emerald-500/5">
+                <CheckCircle2 className="size-8" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="font-heading text-2xl sm:text-3xl font-extrabold text-foreground">
+                  Thank You!
+                </h2>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Your subject knowledge assessment has been successfully submitted and verified.
+                </p>
+              </div>
+              <div className="pt-2 flex flex-col gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowSubjectResultFromConfirmation(true)}
+                  className="inline-flex items-center justify-center gap-2 w-full px-5 py-3 rounded-xl bg-primary text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-all shadow-md cursor-pointer"
+                >
+                  <Sparkles className="size-4" />
+                  <span>View Score</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSubjectTestStarted(false);
+                    setSubjectTestJustSubmitted(false);
+                    setShowSubjectResultFromConfirmation(false);
+                    setSkillView('hub');
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors py-1 cursor-pointer"
+                >
+                  Back to Skill Hub
+                </button>
+              </div>
             </div>
-          </div>
-        ) : testStarted ? (
-          /* Case 3: Attempt Test Page (Assessment in progress) */
-          <AssessmentRunner
-            onComplete={(res) => {
-              setPedagogyResult(res);
-              setTestJustSubmitted(true);
-              if (profile) {
-                setProfile({ ...profile, skillAssessmentCompleted: true });
-              }
-            }}
-            onCancel={() => {
-              setTestStarted(false);
-              router.push('/teacher');
-            }}
-          />
+          ) : subjectTestStarted ? (
+            /* Runner */
+            <SubjectAssessmentRunner
+              onComplete={(res) => {
+                setSubjectResult(res);
+                setSubjectTestJustSubmitted(true);
+                if (profile) {
+                  setProfile({
+                    ...profile,
+                    subjectAssessmentCompleted: true,
+                    skillAssessmentCompleted: Boolean(profile.pedagogyCompleted),
+                  });
+                }
+                if (user) {
+                  updateUser({
+                    subjectAssessmentCompleted: true,
+                    skillAssessmentCompleted: Boolean(profile?.pedagogyCompleted),
+                  });
+                }
+              }}
+              onCancel={() => {
+                setSubjectTestStarted(false);
+                setSkillView('hub');
+              }}
+            />
+          ) : (
+            /* Landing Page for Subject Knowledge */
+            <div className="bg-card border border-border rounded-2xl p-6 sm:p-10 shadow-lg max-w-2xl mx-auto space-y-8 animate-in fade-in duration-200">
+              <div className="text-center space-y-3">
+                <div className="size-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto">
+                  <GraduationCap className="size-7" />
+                </div>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                  Subject Domain Evaluation
+                </span>
+                <h1 className="font-heading text-2xl sm:text-3xl font-bold text-foreground">
+                  Subject Knowledge Assessment
+                </h1>
+                <p className="text-sm text-muted-foreground max-w-lg mx-auto leading-relaxed">
+                  Evaluate your core concept mastery and problem-solving readiness in the subjects and class levels you are open to teach.
+                </p>
+              </div>
+
+              {/* Preferences Summary */}
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 sm:p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-primary">Your Assessment Scope</span>
+                  <button
+                    type="button"
+                    onClick={() => router.push('/teacher?section=availability&edit=availability')}
+                    className="text-xs text-muted-foreground hover:text-foreground underline cursor-pointer"
+                  >
+                    Edit Preferences
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="bg-card border border-border/80 rounded-lg p-3">
+                    <span className="text-muted-foreground block text-[11px]">Subjects Selected:</span>
+                    <strong className="text-foreground text-sm">
+                      {openSubjects.map(s => s === 'MATH' ? '📐 Mathematics' : '🔬 Science').join(', ') || 'None'}
+                    </strong>
+                  </div>
+                  <div className="bg-card border border-border/80 rounded-lg p-3">
+                    <span className="text-muted-foreground block text-[11px]">Class Levels:</span>
+                    <strong className="text-foreground text-sm">
+                      Classes {openClasses.sort((a,b) => a-b).join(', ') || 'None'}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Key Test Details */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3.5 rounded-xl bg-muted/40 border border-border/80 text-center space-y-1">
+                  <div className="text-[11px] text-muted-foreground uppercase font-semibold">Questions</div>
+                  <div className="text-xl font-extrabold text-foreground">{openSubjects.length * 15 || 15}</div>
+                  <div className="text-[11px] text-muted-foreground">15 per subject</div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-muted/40 border border-border/80 text-center space-y-1">
+                  <div className="text-[11px] text-muted-foreground uppercase font-semibold">Duration</div>
+                  <div className="text-xl font-extrabold text-foreground">{openSubjects.length * 20 || 20} Mins</div>
+                  <div className="text-[11px] text-muted-foreground">Adaptive timer</div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-muted/40 border border-border/80 text-center space-y-1">
+                  <div className="text-[11px] text-muted-foreground uppercase font-semibold">Weighting</div>
+                  <div className="text-xl font-extrabold text-foreground">Higher</div>
+                  <div className="text-[11px] text-muted-foreground">Top classes prioritized</div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-muted/40 border border-border/80 text-center space-y-1">
+                  <div className="text-[11px] text-muted-foreground uppercase font-semibold">Difficulty</div>
+                  <div className="text-xl font-extrabold text-foreground">Mixed</div>
+                  <div className="text-[11px] text-muted-foreground">Easy, Med, Hard</div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border/70 bg-muted/25 p-4 sm:p-5 space-y-2.5 text-xs text-muted-foreground">
+                <h4 className="font-semibold text-foreground text-sm flex items-center gap-2">
+                  <BookOpen className="size-4 text-primary" />
+                  Instructions Before You Begin
+                </h4>
+                <ul className="space-y-1.5 list-disc list-inside">
+                  <li>Have scratch paper and a pen ready for calculations.</li>
+                  <li>Questions cover fundamental concepts, applications, and problem solving.</li>
+                  <li>Strict single attempt: your responses will be submitted upon completion or time expiry.</li>
+                </ul>
+              </div>
+
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSubjectTestStarted(true)}
+                  disabled={!hasSubjectPrefs}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-primary text-sm font-bold text-primary-foreground hover:bg-primary/90 transition-all shadow-md disabled:opacity-50 cursor-pointer"
+                >
+                  <span>Attempt Test</span>
+                  <ArrowRight className="size-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSkillView('hub')}
+                  className="w-full sm:w-auto inline-flex items-center justify-center px-5 py-3.5 rounded-xl border border-border text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                >
+                  Back to Hub
+                </button>
+              </div>
+            </div>
+          )
         ) : (
-          /* Case 4: Skill Assessment Landing Page (Pre-test overview with "Attempt Test") */
-          <div className="bg-card border border-border rounded-2xl p-6 sm:p-10 shadow-lg max-w-2xl mx-auto space-y-8 animate-in fade-in duration-200">
-            {/* Header / Intro */}
-            <div className="text-center space-y-3">
-              <div className="size-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto">
-                <Zap className="size-7" />
+          /* ======================================================== */
+          /* MAIN SKILL ASSESSMENT HUB (2 CARDS)                      */
+          /* ======================================================== */
+          <div className="space-y-6">
+            {/* Hub Header & Status Banner */}
+            <div className="bg-card border border-border rounded-2xl p-6 sm:p-8 shadow-sm space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-primary">
+                    Assessment Hub
+                  </span>
+                  {isBothDone ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle2 className="size-3" />
+                      Complete & Verified (2/2)
+                    </span>
+                  ) : completedCount === 1 ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                      1 of 2 Completed
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-muted border border-border px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
+                      0 of 2 Completed
+                    </span>
+                  )}
+                </div>
               </div>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                New Assessment
-              </span>
-              <h1 className="font-heading text-2xl sm:text-3xl font-bold text-foreground">
-                Pedagogy Skill Assessment
-              </h1>
-              <p className="text-sm text-muted-foreground max-w-lg mx-auto leading-relaxed">
-                Evaluate and certify your pedagogical capabilities through scenario-based situations.
-                This assessment evaluates practical classroom management, teaching methodology, student motivation,
-                and inclusive teaching.
-              </p>
-            </div>
 
-            {/* Key Test Details */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-3.5 rounded-xl bg-muted/40 border border-border/80 text-center space-y-1">
-                <div className="text-[11px] text-muted-foreground uppercase font-semibold">Questions</div>
-                <div className="text-xl font-extrabold text-foreground">30</div>
-                <div className="text-[11px] text-muted-foreground">Scenario Items</div>
-              </div>
-              <div className="p-3.5 rounded-xl bg-muted/40 border border-border/80 text-center space-y-1">
-                <div className="text-[11px] text-muted-foreground uppercase font-semibold">Duration</div>
-                <div className="text-xl font-extrabold text-foreground">35 Mins</div>
-                <div className="text-[11px] text-muted-foreground">Timed Session</div>
-              </div>
-              <div className="p-3.5 rounded-xl bg-muted/40 border border-border/80 text-center space-y-1">
-                <div className="text-[11px] text-muted-foreground uppercase font-semibold">Domains</div>
-                <div className="text-xl font-extrabold text-foreground">7 Pillars</div>
-                <div className="text-[11px] text-muted-foreground">Competencies</div>
-              </div>
-              <div className="p-3.5 rounded-xl bg-muted/40 border border-border/80 text-center space-y-1">
-                <div className="text-[11px] text-muted-foreground uppercase font-semibold">Format</div>
-                <div className="text-xl font-extrabold text-foreground">Objective</div>
-                <div className="text-[11px] text-muted-foreground">MCQ, MSQ, SJT</div>
+              <div>
+                <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-foreground">
+                  Teacher Skill Assessment Hub
+                </h1>
+                <p className="text-sm text-muted-foreground mt-1 max-w-2xl leading-relaxed">
+                  Earn your certified skill badges by completing both stages of teacher evaluation: 
+                  <strong> Pedagogy & Classroom Excellence</strong> and <strong>Core Subject Knowledge</strong>.
+                </p>
               </div>
             </div>
 
-            {/* Instructions */}
-            <div className="rounded-xl border border-border/70 bg-muted/25 p-4 sm:p-5 space-y-2.5 text-xs text-muted-foreground">
-              <h4 className="font-semibold text-foreground text-sm flex items-center gap-2">
-                <BookOpen className="size-4 text-primary" />
-                Instructions Before You Begin
-              </h4>
-              <ul className="space-y-1.5 list-disc list-inside">
-                <li>Ensure you have an uninterrupted 35-minute block with a stable internet connection.</li>
-                <li>Each question tests real-world judgment across modern classroom situations.</li>
-                <li>Once you submit the test, your responses will be evaluated and verified.</li>
-              </ul>
-            </div>
+            {/* Warning if subjects are not set */}
+            {!hasSubjectPrefs && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-3">
+                <AlertCircle className="size-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-bold text-sm">Open to Teach Preferences Required</p>
+                  <p className="text-muted-foreground">
+                    You haven't selected your open-to-teach subjects and class levels yet. Please configure your availability preferences so we can generate your customized Subject Knowledge Assessment.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => router.push('/teacher?section=availability&edit=availability')}
+                    className="mt-2 inline-flex items-center gap-1 font-bold text-primary hover:underline cursor-pointer"
+                  >
+                    <span>Configure Availability & Subject Preferences</span>
+                    <ArrowRight className="size-3" />
+                  </button>
+                </div>
+              </div>
+            )}
 
-            {/* Primary CTA */}
-            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => setTestStarted(true)}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-primary text-sm font-bold text-primary-foreground hover:bg-primary/90 transition-all shadow-md cursor-pointer"
-              >
-                <span>Attempt Test</span>
-                <ArrowRight className="size-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => router.push('/teacher')}
-                className="w-full sm:w-auto inline-flex items-center justify-center px-5 py-3.5 rounded-xl border border-border text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-              >
-                Cancel & Return
-              </button>
+            {/* Assessment Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Card 1: Pedagogy Assessment */}
+              <div className="bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col justify-between space-y-6 hover:border-primary/40 transition-colors">
+                <div className="space-y-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="size-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <Zap className="size-6" />
+                    </div>
+                    {isPedagogyDone ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 className="size-3" />
+                        Completed & Verified
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-2.5 py-0.5 text-xs font-bold animate-pulse">
+                        New
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <h2 className="font-heading text-lg font-bold text-foreground">
+                      1. Pedagogy Assessment
+                    </h2>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                      Evaluate scenario-based classroom situations across 7 pillars: classroom management, assessment & feedback, teaching methodology, and inclusive education.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                    <div className="p-2.5 rounded-lg bg-muted/40 border border-border/60">
+                      <span className="text-[10px] text-muted-foreground uppercase block font-semibold">Items</span>
+                      <strong className="text-sm text-foreground">30 Qs</strong>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-muted/40 border border-border/60">
+                      <span className="text-[10px] text-muted-foreground uppercase block font-semibold">Duration</span>
+                      <strong className="text-sm text-foreground">35 Mins</strong>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-muted/40 border border-border/60">
+                      <span className="text-[10px] text-muted-foreground uppercase block font-semibold">Domains</span>
+                      <strong className="text-sm text-foreground">7 Pillars</strong>
+                    </div>
+                  </div>
+
+                  {isPedagogyDone && pedagogyResult && (
+                    <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/25 p-3 flex items-center justify-between text-xs">
+                      <div>
+                        <span className="text-muted-foreground block text-[11px]">Result:</span>
+                        <strong className="text-emerald-700 dark:text-emerald-400 text-sm font-extrabold">
+                          {pedagogyResult.overallScore}% — {pedagogyResult.band}
+                        </strong>
+                      </div>
+                      <Award className="size-5 text-emerald-500" />
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-2">
+                  {isPedagogyDone ? (
+                    <button
+                      type="button"
+                      onClick={() => setSkillView('pedagogy')}
+                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs cursor-pointer"
+                    >
+                      <span>View Pedagogy Result</span>
+                      <ArrowRight className="size-3.5" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setSkillView('pedagogy')}
+                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-xs font-bold text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs cursor-pointer"
+                    >
+                      <span>Attempt Pedagogy Test</span>
+                      <ArrowRight className="size-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Card 2: Subject Knowledge Assessment */}
+              <div className="bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col justify-between space-y-6 hover:border-primary/40 transition-colors">
+                <div className="space-y-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="size-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <GraduationCap className="size-6" />
+                    </div>
+                    {isSubjectDone ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 className="size-3" />
+                        Completed & Verified
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-2.5 py-0.5 text-xs font-bold animate-pulse">
+                        New
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <h2 className="font-heading text-lg font-bold text-foreground">
+                      2. Subject Knowledge Assessment
+                    </h2>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                      Evaluate domain concept depth and problem solving across your chosen subjects (Math & Science) and grade bands (Classes 6–10), weighted towards senior classes.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                    <div className="p-2.5 rounded-lg bg-muted/40 border border-border/60">
+                      <span className="text-[10px] text-muted-foreground uppercase block font-semibold">Per Subject</span>
+                      <strong className="text-sm text-foreground">15 Qs</strong>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-muted/40 border border-border/60">
+                      <span className="text-[10px] text-muted-foreground uppercase block font-semibold">Duration</span>
+                      <strong className="text-sm text-foreground">20m / Subj</strong>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-muted/40 border border-border/60">
+                      <span className="text-[10px] text-muted-foreground uppercase block font-semibold">Scope</span>
+                      <strong className="text-sm text-foreground">Classes 6–10</strong>
+                    </div>
+                  </div>
+
+                  {isSubjectDone && subjectResult && (
+                    <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/25 p-3 flex items-center justify-between text-xs">
+                      <div>
+                        <span className="text-muted-foreground block text-[11px]">Result:</span>
+                        <strong className="text-emerald-700 dark:text-emerald-400 text-sm font-extrabold">
+                          {subjectResult.overallScore}% — {subjectResult.band}
+                        </strong>
+                      </div>
+                      <Award className="size-5 text-emerald-500" />
+                    </div>
+                  )}
+
+                  {!isSubjectDone && openSubjects.length > 0 && (
+                    <div className="rounded-lg bg-muted/40 border border-border/60 p-3 text-xs space-y-1">
+                      <span className="text-muted-foreground text-[11px] block">Selected for Test:</span>
+                      <div className="font-semibold text-foreground flex flex-wrap gap-1.5">
+                        {openSubjects.map(s => (
+                          <span key={s} className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[11px]">
+                            {s === 'MATH' ? '📐 Mathematics' : '🔬 Science'}
+                          </span>
+                        ))}
+                        <span className="px-2 py-0.5 rounded bg-secondary text-secondary-foreground text-[11px]">
+                          Classes: {openClasses.sort((a,b) => a-b).join(', ')}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-2">
+                  {isSubjectDone ? (
+                    <button
+                      type="button"
+                      onClick={() => setSkillView('subject')}
+                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs cursor-pointer"
+                    >
+                      <span>View Subject Result</span>
+                      <ArrowRight className="size-3.5" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setSkillView('subject')}
+                      disabled={!hasSubjectPrefs}
+                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-xs font-bold text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
+                    >
+                      <span>Attempt Subject Test</span>
+                      <ArrowRight className="size-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1226,6 +1781,7 @@ function TeacherPageContent() {
           saving={saving}
           onSubmit={(e: React.FormEvent) => saveDemoStep(e, true)}
           onBack={() => router.push('/teacher?section=demo')}
+          assignedTopics={assignedTopics}
         />
       </main>
     );
@@ -1244,6 +1800,7 @@ function TeacherPageContent() {
         savingDemo={saving}
         demoSuccess={success}
         demoError={error}
+        assignedTopics={assignedTopics}
       />
     );
   }
@@ -2856,6 +3413,7 @@ function DemoStepForm({
   onSubmit,
   onSaveProgress,
   onBack,
+  assignedTopics,
 }: {
   demoVideoUrl: string;
   setDemoVideoUrl: (v: string) => void;
@@ -2863,6 +3421,7 @@ function DemoStepForm({
   onSubmit: (e: React.FormEvent) => Promise<void>;
   onSaveProgress?: () => Promise<void>;
   onBack: () => void;
+  assignedTopics?: any[];
 }) {
   const embedUrl = useMemo(
     () => getYouTubeEmbedUrl(demoVideoUrl),
@@ -2888,6 +3447,49 @@ function DemoStepForm({
         Provide a link to a sample teaching demonstration (e.g. on YouTube). This
         enables school principals to observe your classroom presentation style.
       </p>
+
+      {/* Dynamic Assigned Demo Topics */}
+      {assignedTopics && assignedTopics.length > 0 && (
+        <div className="rounded-xl border border-primary/25 bg-primary/5 p-4 sm:p-5 mb-6 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="size-4 text-primary" />
+              <h3 className="font-heading font-bold text-sm text-foreground">
+                Assigned Teaching Topics
+              </h3>
+            </div>
+            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/20">
+              Curriculum Requirement
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Please prepare and record a 5–10 minute sample teaching video covering the topic below (based on your highest open-to-teach class):
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {assignedTopics.map((topicItem, idx) => (
+              <div
+                key={idx}
+                className="rounded-lg border border-border/80 bg-background/90 p-3.5 space-y-1.5 shadow-xs"
+              >
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-primary">
+                    {topicItem.subject === 'MATH' ? '📐 Mathematics' : '🔬 Science'}
+                  </span>
+                  <span className="font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded text-[11px]">
+                    Class {topicItem.class}
+                  </span>
+                </div>
+                <div className="text-sm font-bold text-foreground">
+                  {topicItem.topic}
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {topicItem.guidelines}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="space-y-4 mb-6">
         <label className="block text-sm font-semibold">
@@ -2976,6 +3578,9 @@ function AvailabilityStepForm({
     availableFrom: string;
     currentLocation?: LocationData | null;
     preferredLocations?: PreferredLocationData[];
+    openToSubjects?: string[];
+    openToClasses?: number[];
+    openToBoard?: string;
   };
   update: (key: string, value: any) => void;
   saving: boolean;
@@ -4358,6 +4963,101 @@ function AvailabilityStepForm({
         </div>
       </div>
 
+      {/* Open to Teach Preferences */}
+      <div className="rounded-xl border border-border bg-card p-5 sm:p-6 space-y-5">
+        <div>
+          <h3 className="font-heading font-bold text-base flex items-center gap-2">
+            <GraduationCap className="size-5 text-primary" />
+            Open to Teach Preferences
+          </h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            Select the subjects and class levels you are open to teach. These are used to generate your Subject Knowledge Assessment and assign Demo Class topics.
+          </p>
+        </div>
+
+        {/* Subjects */}
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Subjects</label>
+          <div className="flex flex-wrap gap-2 mt-1.5">
+            {(['MATH', 'SCIENCE'] as const).map((subject) => {
+              const selected = (data.openToSubjects || []).includes(subject);
+              return (
+                <button
+                  key={subject}
+                  type="button"
+                  onClick={() => {
+                    const current = data.openToSubjects || [];
+                    update('openToSubjects', selected
+                      ? current.filter((s) => s !== subject)
+                      : [...current, subject]);
+                  }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                    selected
+                      ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                      : 'bg-background text-foreground border-border hover:bg-muted'
+                  }`}
+                >
+                  {subject === 'MATH' ? '📐 Mathematics' : '🔬 Science'}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Classes */}
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Class Levels (6–10)</label>
+          <div className="flex flex-wrap gap-2 mt-1.5">
+            {[6, 7, 8, 9, 10].map((cls) => {
+              const selected = (data.openToClasses || []).includes(cls);
+              return (
+                <button
+                  key={cls}
+                  type="button"
+                  onClick={() => {
+                    const current = data.openToClasses || [];
+                    update('openToClasses', selected
+                      ? current.filter((c) => c !== cls)
+                      : [...current, cls]);
+                  }}
+                  className={`w-12 h-10 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                    selected
+                      ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                      : 'bg-background text-foreground border-border hover:bg-muted'
+                  }`}
+                >
+                  {cls}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Board */}
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Preferred Board</label>
+          <div className="flex flex-wrap gap-2 mt-1.5">
+            {(['CBSE', 'ICSE', 'STATE', 'NEUTRAL'] as const).map((board) => {
+              const selected = (data.openToBoard || 'CBSE') === board;
+              return (
+                <button
+                  key={board}
+                  type="button"
+                  onClick={() => update('openToBoard', board)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all cursor-pointer ${
+                    selected
+                      ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                      : 'bg-background text-foreground border-border hover:bg-muted'
+                  }`}
+                >
+                  {board}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
       {/* Onboarding completion callout (only shown during initial onboarding) */}
       {!isEditing && (
         <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-4 text-xs text-emerald-700 dark:text-emerald-400 flex items-center gap-3">
@@ -4439,6 +5139,7 @@ function TeacherDashboard({
   savingDemo,
   demoSuccess,
   demoError,
+  assignedTopics,
 }: {
   user: any;
   profile: TeacherProfile | null;
@@ -4449,6 +5150,7 @@ function TeacherDashboard({
   savingDemo: boolean;
   demoSuccess?: string | null;
   demoError?: string | null;
+  assignedTopics?: any[];
 }) {
   const [isDemoExpanded, setIsDemoExpanded] = useState(false);
   const hasDemoUrl = Boolean(
@@ -4588,6 +5290,31 @@ function TeacherDashboard({
               <div className="flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/15 p-3 text-xs text-emerald-500">
                 <CheckCircle2 className="size-4 shrink-0" />
                 <span>{demoSuccess}</span>
+              </div>
+            )}
+
+            {/* Assigned Topics for Demo (from subject assessment preferences) */}
+            {assignedTopics && assignedTopics.length > 0 && (
+              <div className="rounded-xl border border-primary/25 bg-primary/5 p-3 sm:p-4 space-y-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="size-3.5 text-primary" />
+                  <span className="text-xs font-bold text-foreground">Assigned Teaching Topics</span>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {assignedTopics.map((topicItem: any, idx: number) => (
+                    <div key={idx} className="rounded-lg border border-border/80 bg-background/90 p-3 space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-primary">
+                          {topicItem.subject === 'MATH' ? '📐 Math' : '🔬 Science'}
+                        </span>
+                        <span className="text-muted-foreground bg-muted px-2 py-0.5 rounded text-[10px] font-semibold">
+                          Class {topicItem.class}
+                        </span>
+                      </div>
+                      <div className="text-xs font-bold text-foreground">{topicItem.topic}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

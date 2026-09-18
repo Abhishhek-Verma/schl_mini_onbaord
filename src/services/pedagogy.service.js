@@ -1,7 +1,7 @@
 import { prisma } from "../../lib/prisma.js";
 import { SECTION_ORDER, SECTION_LABELS, TIMING } from "../config/pedagogy.js";
 import { scoreAttempt } from "./pedagogyScoring.js";
-import { serializeProfile, validationError } from "./teacher.service.js";
+import { serializeProfile, validationError, syncSkillAssessmentFlag } from "./teacher.service.js";
 
 function conflictError(message) {
   const error = new Error(message);
@@ -339,13 +339,15 @@ export async function submitPedagogyAssessment(userId, input = {}) {
     },
   });
 
-  // Mark skillAssessmentCompleted in TeacherProfile
+  // Mark pedagogyCompleted in TeacherProfile and sync composite skillAssessmentCompleted
   let updatedProfile;
   try {
-    updatedProfile = await prisma.teacherProfile.update({
+    await prisma.teacherProfile.update({
       where: { userId },
-      data: { skillAssessmentCompleted: true },
+      data: { pedagogyCompleted: true },
     });
+    await syncSkillAssessmentFlag(userId);
+    updatedProfile = await prisma.teacherProfile.findUnique({ where: { userId } });
   } catch (err) {
     throw validationError("Complete your profile before the skill assessment.");
   }

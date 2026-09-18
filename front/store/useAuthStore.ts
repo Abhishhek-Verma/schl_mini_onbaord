@@ -12,6 +12,8 @@ export interface User {
   onboardingCompleted?: boolean;
   demoClassCompleted?: boolean;
   demoVideoUrl?: string | null;
+  pedagogyCompleted?: boolean;
+  subjectAssessmentCompleted?: boolean;
   skillAssessmentCompleted?: boolean;
   teacherProfile?: any;
   principalProfile?: any;

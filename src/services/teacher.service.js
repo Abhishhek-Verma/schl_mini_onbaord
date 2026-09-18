@@ -6,6 +6,7 @@ import {
   generatePresignedDownloadUrl,
   generatePresignedUploadUrl,
 } from "../utils/r2.js";
+import { SUBJECTS, CLASS_MIN, CLASS_MAX, BOARDS } from "../config/subjectAssessment.js";
 
 const EMPLOYMENT_PREFERENCES = ["FULL_TIME", "PART_TIME", "CONTRACT", "SUBSTITUTE", "TEMPORARY"];
 const BOARD_EXPERIENCE = ["CBSE", "ICSE", "STATE_BOARD", "IB", "OTHER"];
@@ -150,6 +151,9 @@ export function serializeProfile(profile) {
     education: tryParseJson(profile.education),
     achievements: tryParseJson(profile.achievements),
     awards: tryParseJson(profile.awards),
+    openToSubjects: tryParseJson(profile.openToSubjects) || [],
+    openToClasses: tryParseJson(profile.openToClasses) || [],
+    demoAssignedTopics: tryParseJson(profile.demoAssignedTopics) || null,
     dateOfBirth: profile.dateOfBirth?.toISOString().slice(0, 10) || null,
     expectedJoiningDate: profile.expectedJoiningDate?.toISOString().slice(0, 10) || null,
     availableFrom: profile.availableFrom?.toISOString().slice(0, 10) || null,
@@ -669,6 +673,34 @@ export async function saveAvailability(userId, input, finalize = false) {
     }
   }
 
+  if (input.openToSubjects !== undefined) {
+    if (Array.isArray(input.openToSubjects)) {
+      const validSubjects = input.openToSubjects
+        .map((s) => String(s).trim().toUpperCase())
+        .filter((s) => SUBJECTS.includes(s));
+      dataToUpdate.openToSubjects = validSubjects;
+    } else {
+      dataToUpdate.openToSubjects = [];
+    }
+  }
+
+  if (input.openToClasses !== undefined) {
+    if (Array.isArray(input.openToClasses)) {
+      const validClasses = input.openToClasses
+        .map((c) => Number(c))
+        .filter((c) => Number.isInteger(c) && c >= CLASS_MIN && c <= CLASS_MAX);
+      validClasses.sort((a, b) => a - b);
+      dataToUpdate.openToClasses = Array.from(new Set(validClasses));
+    } else {
+      dataToUpdate.openToClasses = [];
+    }
+  }
+
+  if (input.openToBoard !== undefined) {
+    const boardStr = String(input.openToBoard || "").trim().toUpperCase();
+    dataToUpdate.openToBoard = BOARDS.includes(boardStr) ? boardStr : "CBSE";
+  }
+
   if (finalize) {
     dataToUpdate.onboardingCompleted = true;
   }
@@ -679,4 +711,18 @@ export async function saveAvailability(userId, input, finalize = false) {
   });
 
   return { profile: serializeProfile(updated) };
+}
+
+export async function syncSkillAssessmentFlag(userId) {
+  const profile = await prisma.teacherProfile.findUnique({
+    where: { userId },
+    select: { pedagogyCompleted: true, subjectAssessmentCompleted: true },
+  });
+  if (!profile) return false;
+  const isBothCompleted = Boolean(profile.pedagogyCompleted && profile.subjectAssessmentCompleted);
+  await prisma.teacherProfile.update({
+    where: { userId },
+    data: { skillAssessmentCompleted: isBothCompleted },
+  });
+  return isBothCompleted;
 }

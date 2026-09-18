@@ -18,6 +18,10 @@ import {
   startPedagogyAssessmentHandler,
   submitPedagogyAssessmentHandler,
   getPedagogyResultHandler,
+  startSubjectAssessmentHandler,
+  submitSubjectAssessmentHandler,
+  getSubjectResultHandler,
+  getAssignedTopicsHandler,
 } from "../controllers/teacher.controller.js";
 
 const router = Router();
@@ -30,6 +34,10 @@ router.put("/onboarding/documents-step", ...teacherOnly, saveDocumentsStepHandle
 router.post("/onboarding/skill-assessment/start", ...teacherOnly, startPedagogyAssessmentHandler);
 router.post("/onboarding/skill-assessment/submit", ...teacherOnly, submitPedagogyAssessmentHandler);
 router.get("/onboarding/skill-assessment/result", ...teacherOnly, getPedagogyResultHandler);
+router.post("/onboarding/subject-assessment/start", ...teacherOnly, startSubjectAssessmentHandler);
+router.post("/onboarding/subject-assessment/submit", ...teacherOnly, submitSubjectAssessmentHandler);
+router.get("/onboarding/subject-assessment/result", ...teacherOnly, getSubjectResultHandler);
+router.get("/onboarding/demo-class/assigned-topics", ...teacherOnly, getAssignedTopicsHandler);
 router.put("/onboarding/demo-class", ...teacherOnly, saveDemoClassHandler);
 router.put("/onboarding/passport-score", ...teacherOnly, saveTeacherPassportHandler);
 router.put("/onboarding/availability", ...teacherOnly, saveAvailabilityHandler);
